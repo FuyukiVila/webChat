@@ -80,6 +80,7 @@ public class ClientHandler implements Runnable {
                     .type(MessageType.LOGIN_SUCCESS)
                     .content("登录成功！")
                     .data(loginData)
+                    .sender("SERVER")
                     .build();
                 sendMessage(loginSuccess);
                 break;
@@ -118,6 +119,7 @@ public class ClientHandler implements Runnable {
                 sendMessage(Message.builder()
                     .type(MessageType.USER_LIST_RESPONSE)
                     .data(userList)
+                    .sender("SERVER")
                     .build());
                 break;
 
@@ -150,6 +152,31 @@ public class ClientHandler implements Runnable {
                     .type(MessageType.LIST_ROOMS_RESPONSE)
                     .data(roomList)
                     .build());
+                break;
+
+            case ROOM_INFO_REQUEST:
+                String targetRoom = message.getRoomName();
+                if (targetRoom == null) {
+                    sendMessage(Message.createSystemMessage(
+                        MessageType.ERROR_MESSAGE,
+                        "请求房间信息失败：聊天室名称不能为空"
+                    ));
+                    return;
+                }
+                
+                Map<String, Object> roomInfo = server.getRoomInfo(targetRoom);
+                if (roomInfo == null) {
+                    sendMessage(Message.createSystemMessage(
+                        MessageType.ERROR_MESSAGE,
+                        "请求房间信息失败：聊天室 '" + targetRoom + "' 不存在"
+                    ));
+                } else {
+                    sendMessage(Message.builder()
+                        .type(MessageType.ROOM_INFO_RESPONSE)
+                        .data(roomInfo)
+                        .roomName(targetRoom)
+                        .build());
+                }
                 break;
 
             case LOGOUT_REQUEST:
@@ -187,6 +214,7 @@ public class ClientHandler implements Runnable {
                 .type(MessageType.JOIN_ROOM_SUCCESS) // Client uses this to set currentRoom
                 .content("聊天室 '" + roomName + "' 创建成功并已自动加入")
                 .roomName(roomName)
+                .sender("SERVER")
                 .build());
         } else {
             sendMessage(Message.createSystemMessage(
@@ -214,11 +242,12 @@ public class ClientHandler implements Runnable {
                 .type(MessageType.JOIN_ROOM_SUCCESS)
                 .content("成功加入聊天室 '" + roomName + "'")
                 .roomName(roomName) // Explicitly set roomName
+                .sender("SERVER")
                 .build());
         } else {
             sendMessage(Message.createSystemMessage(
                 MessageType.JOIN_ROOM_FAILURE,
-                "加入聊天室失败：聊天室 '" + roomName + "' 不存在"
+                "加入聊天室失败：聊天室 '" + roomName + "' 不存在或你已经在该聊天室中"
             ));
         }
     }

@@ -5,6 +5,7 @@ import com.example.chat.common.MessageType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.Date;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
@@ -26,7 +27,7 @@ public class ChatClient {
     private ObjectInputStream input;
     private ObjectOutputStream output;
     private String username;
-    private String currentRoom;  // 当前所在的聊天室
+    private String currentRoom; // 当前所在的聊天室
     private volatile boolean running;
     private final Scanner scanner;
 
@@ -46,15 +47,24 @@ public class ChatClient {
      * 启动客户端
      */
     public void start() {
+        System.out.println("\n=== 聊天客户端启动 ===");
+        System.out.println("* 服务器地址: " + host);
+        System.out.println("* 端口: " + port);
+        System.out.println("* 按 Ctrl+C 退出程序");
+        System.out.println("===================\n");
+
         try {
+            System.out.printf("正在连接到服务器 %s:%d...\n", host, port);
             // 连接到服务器
             socket = new Socket(host, port);
             output = new ObjectOutputStream(socket.getOutputStream());
             input = new ObjectInputStream(socket.getInputStream());
             running = true;
+            System.out.println("已成功连接到服务器");
 
             // 处理登录
             if (!login()) {
+                close();
                 return;
             }
 
@@ -79,72 +89,72 @@ public class ChatClient {
     private boolean login() {
         try {
             while (running) {
-                System.out.println("请输入您的用户名：");
+                displayInfoMessage("请输入您的用户名：");
                 String input = scanner.nextLine().trim();
-                
+
                 // 验证用户名格式
                 if (input.isEmpty()) {
-                    System.out.println("用户名不能为空，请重新输入！");
+                    displayErrorMessage("用户名不能为空，请重新输入！");
                     continue;
                 }
                 if (input.startsWith("/")) {
-                    System.out.println("用户名不能以'/'开头，请重新输入！");
+                    displayErrorMessage("用户名不能以'/'开头，请重新输入！");
                     continue;
                 }
                 if (input.contains(" ")) {
-                    System.out.println("用户名不能包含空格，请重新输入！");
+                    displayErrorMessage("用户名不能包含空格，请重新输入！");
                     continue;
                 }
 
                 // 发送登录请求
                 sendMessage(Message.createLoginRequest(input));
-                
+
                 // 等待登录响应或其他系统消息
                 while (running) {
                     Message response = (Message) this.input.readObject();
-                    
+
                     switch (response.getType()) {
                         case LOGIN_SUCCESS:
                             this.username = input;
-                            System.out.println("登录成功！");
-                            
+                            displayInfoMessage("登录成功！");
+
                             // 显示在线用户列表和可用聊天室
                             Map<String, Object> loginData = (Map<String, Object>) response.getData();
                             List<String> onlineUsers = (List<String>) loginData.get("users");
                             List<String> availableRooms = (List<String>) loginData.get("rooms");
-                            
+
                             if (onlineUsers != null && !onlineUsers.isEmpty()) {
-                                System.out.println("当前在线用户：" + String.join(", ", onlineUsers));
+                                displayInfoMessage("当前在线用户：" + String.join(", ", onlineUsers));
                             }
                             if (availableRooms != null && !availableRooms.isEmpty()) {
-                                System.out.println("当前可用聊天室：" + String.join(", ", availableRooms));
+                                displayInfoMessage("当前可用聊天室：" + String.join(", ", availableRooms));
                             }
                             return true;
 
                         case LOGIN_FAILURE_USERNAME_TAKEN:
                             System.out.println(MessageFormatter.formatMessage(response, null));
-                            break;  // 退出内层循环，继续外层循环重新输入用户名
+                            break; // 退出内层循环，继续外层循环重新输入用户名
 
                         case ERROR_MESSAGE:
                             System.out.println(MessageFormatter.formatMessage(response, null));
-                            return false;  // 其他错误消息，退出登录流程
+                            return false; // 其他错误消息，退出登录流程
 
                         case USER_JOINED_NOTIFICATION:
                         case USER_LEFT_NOTIFICATION:
                             // 在登录过程中收到的系统通知，直接显示
                             System.out.println(MessageFormatter.formatMessage(response, input));
-                            continue;  // 继续等待登录响应
+                            continue; // 继续等待登录响应
 
                         default:
                             log.warn("登录过程中收到意外的消息类型：{}", response.getType());
-                            continue;  // 继续等待登录响应
+                            continue; // 继续等待登录响应
                     }
-                    break;  // 收到 LOGIN_FAILURE_USERNAME_TAKEN 后退出内层循环
+                    break; // 收到 LOGIN_FAILURE_USERNAME_TAKEN 后退出内层循环
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
             log.error("登录过程中发生错误: {}", e.getMessage());
-            System.out.println("连接异常，请重试...");
+            displayErrorMessage("连接异常，请重试...");
             return false;
         }
         return false;
@@ -153,91 +163,95 @@ public class ChatClient {
     /**
      * 处理用户输入
      */
-    private void processUserInput() {
+    private void processUserInput() throws IOException {
         displayHelp();
 
         while (running) {
             String input = scanner.nextLine().trim();
-            if (input.isEmpty()) continue;
+            if (input.isEmpty())
+                continue;
 
             // 清除用户输入的命令行
-            System.out.print("\033[1A");  // 光标上移一行
-            System.out.print("\033[2K");  // 清除整行
+            System.out.print("\033[1A"); // 光标上移一行
+            System.out.print("\033[2K"); // 清除整行
 
-            try {
-                if (input.startsWith("/")) {
-                    // 处理命令
-                    String[] parts = input.split(" ", 2);
-                    String command = parts[0];
-                    String args = parts.length > 1 ? parts[1].trim() : "";
+            if (input.startsWith("/")) {
+                // 处理命令
+                String[] parts = input.split(" ", 2);
+                String command = parts[0];
+                String args = parts.length > 1 ? parts[1].trim() : "";
 
-                    switch (command) {
-                        case "/help":
-                            displayHelp();
-                            break;
-                            
-                        case "/exit":
-                            sendMessage(Message.builder()
+                switch (command) {
+                    case "/help":
+                        displayHelp();
+                        break;
+
+                    case "/room-info":
+                        if (currentRoom == null) {
+                            displayErrorMessage("您当前不在任何聊天室中");
+                        } else {
+                            sendMessage(Message.createRoomInfoRequest(username, currentRoom));
+                        }
+                        break;
+
+                    case "/exit":
+                        sendMessage(Message.builder()
                                 .type(MessageType.LOGOUT_REQUEST)
                                 .sender(username)
                                 .build());
-                            break;
-                            
-                        case "/list":
-                            sendMessage(Message.createUserListRequest(username));
-                            break;
-                            
-                        case "/rooms":
-                            sendMessage(Message.createListRoomsRequest(username));
-                            break;
-                            
-                        case "/create-room":
-                            if (!args.isEmpty()) {
-                                handleCreateRoom(args);
-                            } else {
-                                System.out.println("创建聊天室格式：/create-room <房间名>");
-                            }
-                            break;
-                            
-                        case "/join":
-                            if (!args.isEmpty()) {
-                                handleJoinRoom(args);
-                            } else {
-                                System.out.println("加入聊天室格式：/join <房间名>");
-                            }
-                            break;
-                            
-                        case "/leave":
-                            if (currentRoom == null) {
-                                System.out.println("您当前不在任何聊天室中");
-                            } else {
-                                handleLeaveRoom(currentRoom);
-                            }
-                            break;
-                            
-                        case "/pm":
-                            if (!args.isEmpty()) {
-                                handlePrivateMessage("/pm " + args);  // 保持原有格式
-                            } else {
-                                System.out.println("私聊格式：/pm <用户名> <消息>");
-                            }
-                            break;
-                            
-                        default:
-                            System.out.println("无效的命令。使用 /help 查看可用命令。");
-                            break;
-                    }
-                } else {
-                    // 非命令消息发送到当前聊天室
-                    if (currentRoom == null) {
-                        System.out.println("请先加入一个聊天室再发送消息（使用 /join <房间名>）");
-                    } else {
-                        sendMessage(Message.createRoomMessage(input, username, currentRoom));
-                    }
+                        break;
+
+                    case "/list":
+                        sendMessage(Message.createUserListRequest(username));
+                        break;
+
+                    case "/rooms":
+                        sendMessage(Message.createListRoomsRequest(username));
+                        break;
+
+                    case "/create-room":
+                        if (!args.isEmpty()) {
+                            handleCreateRoom(args);
+                        } else {
+                            displayHintMessage("创建聊天室格式：/create-room <房间名>");
+                        }
+                        break;
+
+                    case "/join":
+                        if (!args.isEmpty()) {
+                            handleJoinRoom(args);
+                        } else {
+                            displayHintMessage("加入聊天室格式：/join <房间名>");
+                        }
+                        break;
+
+                    case "/leave":
+                        if (currentRoom == null) {
+                            displayErrorMessage("您当前不在任何聊天室中");
+                        } else {
+                            handleLeaveRoom(currentRoom);
+                        }
+                        break;
+
+                    case "/pm":
+                        if (!args.isEmpty()) {
+                            handlePrivateMessage("/pm " + args); // 保持原有格式
+                        } else {
+                            displayHintMessage("私聊格式：/pm <用户名> <消息>");
+                        }
+                        break;
+
+                    default:
+                        displayErrorMessage("无效的命令。使用 /help 查看可用命令。");
+                        break;
                 }
-            } catch (IOException e) {
-                log.error("发送消息失败: {}", e.getMessage());
-                break;
+            } else {
+                // 非命令消息发送到当前聊天室
+                if (currentRoom == null) {
+                    displayHintMessage("请先加入一个聊天室再发送消息（使用 /join <房间名>）");
+                } else {
+                    sendMessage(Message.createRoomMessage(input, username, currentRoom));
+                }
             }
         }
     }
@@ -246,6 +260,10 @@ public class ChatClient {
      * 处理创建聊天室命令
      */
     private void handleCreateRoom(String roomName) throws IOException {
+        // 如果已经在某个房间中，先退出当前房间
+        if (currentRoom != null && !currentRoom.equals(roomName)) {
+            handleLeaveRoom(currentRoom);
+        }
         sendMessage(Message.createCreateRoomRequest(roomName, username));
     }
 
@@ -253,6 +271,10 @@ public class ChatClient {
      * 处理加入聊天室命令
      */
     private void handleJoinRoom(String roomName) throws IOException {
+        // 如果已经在某个房间中，先退出当前房间
+        if (currentRoom != null && !currentRoom.equals(roomName)) {
+            handleLeaveRoom(currentRoom);
+        }
         sendMessage(Message.createJoinRoomRequest(roomName, username));
         // 注意：实际的房间切换会在收到 JOIN_ROOM_SUCCESS 消息时完成
     }
@@ -271,7 +293,7 @@ public class ChatClient {
     private void handlePrivateMessage(String input) throws IOException {
         String[] parts = input.split(" ", 3);
         if (parts.length < 3) {
-            System.out.println("私聊格式：/pm <用户名> <消息>");
+            displayHintMessage("私聊格式：/pm <用户名> <消息>");
             return;
         }
         String targetUser = parts[1];
@@ -279,12 +301,7 @@ public class ChatClient {
 
         // 检查是否试图给自己发送私聊消息
         if (targetUser.equals(username)) {
-            System.out.println(MessageFormatter.formatMessage(
-                Message.builder()
-                    .type(MessageType.ERROR_MESSAGE)
-                    .content("不能向自己发送私聊消息")
-                    .build(),
-                username));
+            displayErrorMessage("不能向自己发送私聊消息");
             return;
         }
 
@@ -298,7 +315,7 @@ public class ChatClient {
         try {
             while (running) {
                 Message message = (Message) input.readObject();
-                
+
                 // 显示消息
                 displayMessage(message);
             }
@@ -316,15 +333,33 @@ public class ChatClient {
      */
     private void displayMessage(Message message) {
         String formattedMessage = MessageFormatter.formatMessage(message, username);
-        System.out.println(formattedMessage);
-        
-        // 处理加入房间成功的消息
-        if (message.getType() == MessageType.JOIN_ROOM_SUCCESS) {
-            currentRoom = message.getRoomName();
-        } else if (message.getType() == MessageType.LEAVE_ROOM_SUCCESS) {
-            currentRoom = null;
-        } else if (message.getType() == MessageType.SERVER_SHUTDOWN_NOTIFICATION) {
-            close();
+
+        switch (message.getType()) {
+            case JOIN_ROOM_SUCCESS:
+                currentRoom = message.getRoomName();
+                System.out.println(formattedMessage);
+                break;
+
+            case LEAVE_ROOM_SUCCESS:
+                currentRoom = null;
+                System.out.println(formattedMessage);
+                break;
+
+            case ROOM_INFO_RESPONSE:
+            case LIST_ROOMS_RESPONSE:
+            case USER_LIST_RESPONSE:
+                System.out.println(formattedMessage);
+                break;
+
+            case LOGOUT_CONFIRMATION:
+            case SERVER_SHUTDOWN_NOTIFICATION:
+                System.out.println(formattedMessage);
+                close();
+                break;
+
+            default:
+                System.out.println(formattedMessage);
+                break;
         }
     }
 
@@ -340,16 +375,31 @@ public class ChatClient {
      * 关闭客户端连接
      */
     private void close() {
+        if (!running) {
+            return;
+        }
+        // 先设置running为false，停止消息接收线程
         running = false;
+
+        // 等待一小段时间，确保消息接收线程停止
         try {
-            if (input != null) input.close();
-            if (output != null) output.close();
-            if (socket != null) socket.close();
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        try {
+            if (input != null)
+                input.close();
+            if (output != null)
+                output.close();
+            if (socket != null)
+                socket.close();
             scanner.close();
         } catch (IOException e) {
             log.error("关闭连接时发生错误: {}", e.getMessage());
         }
-        System.out.println("已断开与服务器的连接");
+        // displayInfoMessage("已断开与服务器的连接");
     }
 
     /**
@@ -371,6 +421,27 @@ public class ChatClient {
         }
 
         ChatClient client = new ChatClient(host, port);
+
+        // 添加关闭钩子，确保在Ctrl+C时正确退出
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (client.running) {
+                try {
+                    // 发送登出消息
+                    client.sendMessage(Message.builder()
+                            .type(MessageType.LOGOUT_REQUEST)
+                            .sender(client.username)
+                            .timestamp(new Date())
+                            .build());
+                    // 等待服务器响应
+                    Thread.sleep(100);
+                } catch (Exception e) {
+                    // 忽略关闭过程中的异常
+                } finally {
+                    client.close();
+                }
+            }
+        }));
+
         client.start();
     }
 
@@ -386,8 +457,42 @@ public class ChatClient {
         System.out.println("/create-room <名称> - 创建新聊天室");
         System.out.println("/join <房间名>      - 加入聊天室");
         System.out.println("/leave             - 离开当前聊天室");
+        System.out.println("/room-info         - 显示当前房间信息和成员列表");
         System.out.println("/pm <用户名> <消息>  - 发送私聊消息");
         System.out.println("直接输入消息         - 在当前聊天室发言");
         System.out.println("==================\n");
+    }
+
+    /**
+     * 显示错误消息（红色）
+     */
+    private void displayErrorMessage(String content) {
+        Message message = Message.builder()
+                .type(MessageType.LOCAL_ERROR)
+                .content(content)
+                .build();
+        System.out.println(MessageFormatter.formatMessage(message, username));
+    }
+
+    /**
+     * 显示提示消息（青色）
+     */
+    private void displayHintMessage(String content) {
+        Message message = Message.builder()
+                .type(MessageType.LOCAL_HINT)
+                .content(content)
+                .build();
+        System.out.println(MessageFormatter.formatMessage(message, username));
+    }
+
+    /**
+     * 显示普通信息（蓝色）
+     */
+    private void displayInfoMessage(String content) {
+        Message message = Message.builder()
+                .type(MessageType.LOCAL_INFO)
+                .content(content)
+                .build();
+        System.out.println(MessageFormatter.formatMessage(message, username));
     }
 }

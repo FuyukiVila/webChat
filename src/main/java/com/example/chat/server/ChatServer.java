@@ -5,6 +5,8 @@ import com.example.chat.common.MessageType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -51,7 +53,12 @@ public class ChatServer {
         try {
             serverSocket = new ServerSocket(port);
             running = true;
-            System.out.println("聊天服务器启动成功，正在监听端口: " + port);
+            log.info("聊天服务器启动成功，正在监听端口: {}", port);
+            log.info("按 Ctrl+C 可以安全关闭服务器");
+            System.out.println("\n=== 聊天服务器已启动 ===");
+            System.out.println("* 监听端口: " + port);
+            System.out.println("* 按 Ctrl+C 关闭服务器");
+            System.out.println("=====================\n");
 
             while (running) {
                 try {
@@ -78,30 +85,42 @@ public class ChatServer {
      * 关闭服务器
      */
     public void shutdown() {
+        if (!running) {
+            return;
+        }
+        
+        log.info("开始服务器关闭流程...");
         running = false;
+        
         try {
             if (serverSocket != null && !serverSocket.isClosed()) {
+                log.info("关闭服务器套接字...");
                 serverSocket.close();
             }
         } catch (IOException e) {
-            System.err.println("关闭服务器套接字时发生错误: " + e.getMessage());
+            log.error("关闭服务器套接字时发生错误: {}", e.getMessage());
         }
 
         // 通知所有客户端服务器关闭
+        log.info("通知所有客户端服务器即将关闭...");
         broadcastSystemMessage(Message.createSystemMessage(
                 MessageType.SERVER_SHUTDOWN_NOTIFICATION,
                 "服务器即将关闭..."));
 
         // 关闭所有客户端连接
+        log.info("关闭所有客户端连接...");
         onlineUsers.values().forEach(handler -> handler.close());
         onlineUsers.clear();
 
         // 清理所有聊天室
+        log.info("清理聊天室资源...");
         chatRooms.clear();
 
         // 关闭线程池
+        log.info("关闭线程池...");
         executorService.shutdown();
-        System.out.println("服务器已关闭");
+        
+        log.info("服务器关闭完成");
     }
 
     /**
@@ -233,7 +252,7 @@ public class ChatServer {
                     .type(MessageType.USER_JOINED_ROOM_NOTIFICATION)
                     .content("用户 " + username + " 加入了聊天室")
                     .roomName(roomName)
-                    .sender("[系统]")
+                    .sender("SERVER")
                     .build());
             return true;
         }
@@ -251,7 +270,7 @@ public class ChatServer {
                     .type(MessageType.USER_LEFT_ROOM_NOTIFICATION)
                     .content("用户 " + username + " 离开了聊天室")
                     .roomName(roomName)
-                    .sender("[系统]")
+                    .sender("SERVER")
                     .build());
 
             // 如果房间空了，就删除这个房间
@@ -315,10 +334,31 @@ public class ChatServer {
                 .content(message.getContent())
                 .sender(message.getSender())
                 .roomName(roomName)
+                // 使用原消息的时间戳，而不是当前时间，保持时间一致
                 .timestamp(message.getTimestamp())
                 .build();
 
         broadcastToRoom(roomName, broadcastMessage);
+    }
+
+    /**
+     * 获取聊天室信息
+     * @param roomName 聊天室名称
+     * @return 包含房间信息的Map，如果房间不存在则返回null
+     */
+    public Map<String, Object> getRoomInfo(String roomName) {
+        ChatRoom room = chatRooms.get(roomName);
+        if (room == null) {
+            return null;
+        }
+
+        Map<String, Object> roomInfo = new HashMap<>();
+        roomInfo.put("name", room.getName());
+        roomInfo.put("creator", room.getCreator());
+        roomInfo.put("creationTime", room.getCreationTime());
+        roomInfo.put("members", new ArrayList<>(room.getMembers()));
+        
+        return roomInfo;
     }
 
     /**
@@ -335,6 +375,13 @@ public class ChatServer {
         }
 
         ChatServer server = new ChatServer(port);
+        
+        // 添加关闭钩子，确保在Ctrl+C时正确关闭服务器
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("\n正在关闭服务器...");
+            server.shutdown();
+        }));
+        
         server.start();
     }
 }

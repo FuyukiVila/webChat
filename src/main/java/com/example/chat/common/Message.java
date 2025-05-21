@@ -69,10 +69,10 @@ public class Message implements Serializable {
     /**
      * 创建一个创建聊天室的请求消息
      */
-    public static Message createCreateRoomRequest(String roomName, String creator) {
+    public static Message createCreateRoomRequest(String roomName, String username) {
         return Message.builder()
                 .type(MessageType.CREATE_ROOM_REQUEST)
-                .sender(creator)
+                .sender(username)
                 .roomName(roomName)
                 .timestamp(new Date())
                 .build();
@@ -116,10 +116,10 @@ public class Message implements Serializable {
     /**
      * 创建一个请求用户列表的消息
      */
-    public static Message createUserListRequest(String sender) {
+    public static Message createUserListRequest(String username) {
         return Message.builder()
                 .type(MessageType.USER_LIST_REQUEST)
-                .sender(sender)
+                .sender(username)
                 .timestamp(new Date())
                 .build();
     }
@@ -127,10 +127,22 @@ public class Message implements Serializable {
     /**
      * 创建一个请求聊天室列表的消息
      */
-    public static Message createListRoomsRequest(String sender) {
+    public static Message createListRoomsRequest(String username) {
         return Message.builder()
                 .type(MessageType.LIST_ROOMS_REQUEST)
-                .sender(sender)
+                .sender(username)
+                .timestamp(new Date())
+                .build();
+    }
+
+    /**
+     * 创建一个请求房间信息的消息
+     */
+    public static Message createRoomInfoRequest(String username, String roomName) {
+        return Message.builder()
+                .type(MessageType.ROOM_INFO_REQUEST)
+                .sender(username)
+                .roomName(roomName)
                 .timestamp(new Date())
                 .build();
     }

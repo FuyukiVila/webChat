@@ -48,5 +48,14 @@ public enum MessageType {
     // 聊天室状态变更通知
     USER_JOINED_ROOM_NOTIFICATION,  // S->C: 服务器通知房间内有新用户加入
     USER_LEFT_ROOM_NOTIFICATION,    // S->C: 服务器通知房间内有用户离开
-    ROOM_DESTROYED_NOTIFICATION     // S->C: 服务器通知聊天室已被销毁（当房间空了之后）
+    ROOM_DESTROYED_NOTIFICATION,     // S->C: 服务器通知聊天室已被销毁（当房间空了之后）
+    
+    // 房间信息相关
+    ROOM_INFO_REQUEST,              // C->S: 客户端请求获取当前房间信息
+    ROOM_INFO_RESPONSE,             // S->C: 服务器响应房间信息
+
+    // 本地消息类型（客户端内部使用）
+    LOCAL_ERROR,                    // 本地错误提示（红色）
+    LOCAL_HINT,                     // 本地操作提示（青色）
+    LOCAL_INFO                      // 本地普通提示（蓝色）
 }
