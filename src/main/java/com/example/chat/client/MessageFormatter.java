@@ -56,7 +56,7 @@ public class MessageFormatter {
                     
             case LOCAL_HINT:
                 return String.format("%s[提示] %s%s%s",
-                    ANSI_BRIGHT_CYAN, message.getContent(), ANSI_RESET,
+                    ANSI_CYAN, message.getContent(), ANSI_RESET,
                     formatTimestamp(message.getTimestamp()));
                     
             case LOCAL_INFO:
