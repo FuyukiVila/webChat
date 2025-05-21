@@ -17,7 +17,6 @@ public class MessageFormatter {
     private static final String ANSI_BLUE = "\u001B[34m";    // 聊天室消息
     private static final String ANSI_MAGENTA = "\u001B[35m"; // 用户名
     private static final String ANSI_CYAN = "\u001B[36m";    // 发出的私聊
-    private static final String ANSI_BRIGHT_CYAN = "\u001B[36;1m"; // 聊天室名称
 
     /**
      * 格式化时间戳（右对齐到行末）
@@ -66,7 +65,7 @@ public class MessageFormatter {
             // 聊天室消息
             case ROOM_MESSAGE_BROADCAST:
                 return String.format("%s[%s%s%s] %s%s%s: %s%s%s",
-                    ANSI_BLUE, ANSI_BRIGHT_CYAN, message.getRoomName(), ANSI_BLUE,
+                    ANSI_BLUE, ANSI_CYAN, message.getRoomName(), ANSI_BLUE,
                     ANSI_MAGENTA, message.getSender(), ANSI_BLUE,
                     message.getContent(), ANSI_RESET,
                     formatTimestamp(message.getTimestamp()));
@@ -97,7 +96,7 @@ public class MessageFormatter {
             case USER_JOINED_ROOM_NOTIFICATION:
             case USER_LEFT_ROOM_NOTIFICATION:
                 return String.format("%s[%s%s%s] %s%s%s",
-                    ANSI_GREEN, ANSI_BRIGHT_CYAN, message.getRoomName(), ANSI_GREEN,
+                    ANSI_GREEN, ANSI_CYAN, message.getRoomName(), ANSI_GREEN,
                     message.getContent(), ANSI_RESET,
                     formatTimestamp(message.getTimestamp()));
 
@@ -127,7 +126,7 @@ public class MessageFormatter {
                         formatTimestamp(message.getTimestamp()));
                 }
                 String coloredRooms = rooms.stream()
-                    .map(room -> ANSI_BRIGHT_CYAN + room + ANSI_GREEN)
+                    .map(room -> ANSI_CYAN + room + ANSI_GREEN)
                     .collect(java.util.stream.Collectors.joining(", "));
                 return String.format("%s可用聊天室：%s%s%s",
                     ANSI_GREEN, coloredRooms, ANSI_RESET,
@@ -149,7 +148,7 @@ public class MessageFormatter {
                     .format(new java.util.Date(creationTime));
                 
                 return String.format("%s房间: %s%s%s\n创建者: %s%s%s\n创建时间: %s\n成员: %s%s",
-                    ANSI_GREEN, ANSI_BRIGHT_CYAN, roomName, ANSI_GREEN,
+                    ANSI_GREEN, ANSI_CYAN, roomName, ANSI_GREEN,
                     ANSI_MAGENTA, creator, ANSI_GREEN,
                     timeStr,
                     coloredMembers, ANSI_RESET);
