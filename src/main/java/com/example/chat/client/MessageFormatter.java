@@ -1,7 +1,6 @@
 package com.example.chat.client;
 
 import com.example.chat.common.Message;
-import com.example.chat.common.MessageType;
 import java.util.List;
 import java.util.Map;
 

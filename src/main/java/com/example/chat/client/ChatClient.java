@@ -31,6 +31,14 @@ public class ChatClient {
     private volatile boolean running;
     private final Scanner scanner;
 
+    /**
+     * 验证名称格式（用户名或房间名）
+     * 只允许使用大小写字母、数字和下划线
+     */
+    private boolean isValidName(String name) {
+        return name.matches("^[a-zA-Z0-9_]+$");
+    }
+
     public ChatClient(String host, int port) {
         this.host = host;
         this.port = port;
@@ -97,12 +105,8 @@ public class ChatClient {
                     displayErrorMessage("用户名不能为空，请重新输入！");
                     continue;
                 }
-                if (input.startsWith("/")) {
-                    displayErrorMessage("用户名不能以'/'开头，请重新输入！");
-                    continue;
-                }
-                if (input.contains(" ")) {
-                    displayErrorMessage("用户名不能包含空格，请重新输入！");
+                if (!isValidName(input)) {
+                    displayErrorMessage("用户名只能包含大小写字母、数字和下划线，请重新输入！");
                     continue;
                 }
 
@@ -260,6 +264,12 @@ public class ChatClient {
      * 处理创建聊天室命令
      */
     private void handleCreateRoom(String roomName) throws IOException {
+        // 验证房间名格式
+        if (!isValidName(roomName)) {
+            displayErrorMessage("房间名只能包含大小写字母、数字和下划线！");
+            return;
+        }
+
         // 如果已经在某个房间中，先退出当前房间
         if (currentRoom != null && !currentRoom.equals(roomName)) {
             handleLeaveRoom(currentRoom);
@@ -271,6 +281,12 @@ public class ChatClient {
      * 处理加入聊天室命令
      */
     private void handleJoinRoom(String roomName) throws IOException {
+        // 验证房间名格式
+        if (!isValidName(roomName)) {
+            displayErrorMessage("房间名只能包含大小写字母、数字和下划线！");
+            return;
+        }
+
         // 如果已经在某个房间中，先退出当前房间
         if (currentRoom != null && !currentRoom.equals(roomName)) {
             handleLeaveRoom(currentRoom);

@@ -24,6 +24,14 @@ public class ClientHandler implements Runnable {
     private String username;
     private volatile boolean running;
 
+    /**
+     * 验证名称格式（用户名或房间名）
+     * 只允许使用大小写字母、数字和下划线
+     */
+    private boolean isValidName(String name) {
+        return name != null && name.matches("^[a-zA-Z0-9_]+$");
+    }
+
     public ClientHandler(Socket socket, ChatServer server) {
         this.clientSocket = socket;
         this.server = server;
@@ -69,6 +77,16 @@ public class ClientHandler implements Runnable {
             }
 
             String requestedUsername = loginMessage.getSender();
+            
+            // 验证用户名格式
+            if (!isValidName(requestedUsername)) {
+                sendMessage(Message.createSystemMessage(
+                    MessageType.ERROR_MESSAGE,
+                    "用户名只能包含大小写字母、数字和下划线"
+                ));
+                continue;
+            }
+
             if (server.addUser(requestedUsername, this)) {
                 this.username = requestedUsername;
                 // 发送登录成功消息，包含当前在线用户列表和可用聊天室列表
@@ -206,6 +224,15 @@ public class ClientHandler implements Runnable {
             return;
         }
 
+        // 验证房间名格式
+        if (!isValidName(roomName)) {
+            sendMessage(Message.createSystemMessage(
+                MessageType.ERROR_MESSAGE,
+                "房间名只能包含大小写字母、数字和下划线"
+            ));
+            return;
+        }
+
         if (server.createChatRoom(roomName, username)) {
             // 创建成功后自动加入
             // 创建者在 ChatRoom 构造时已自动加入。
@@ -233,6 +260,15 @@ public class ClientHandler implements Runnable {
             sendMessage(Message.createSystemMessage(
                 MessageType.ERROR_MESSAGE,
                 "聊天室名称不能为空"
+            ));
+            return;
+        }
+
+        // 验证房间名格式
+        if (!isValidName(roomName)) {
+            sendMessage(Message.createSystemMessage(
+                MessageType.ERROR_MESSAGE,
+                "房间名只能包含大小写字母、数字和下划线"
             ));
             return;
         }
