@@ -29,14 +29,15 @@ public class CommandHandler {
     private void initializeCommands() {
         // 添加修改密码命令
         commands.put("/passwd", (args, state) -> {
-            if (args.length < 3) {
+            if (args.length < 2) {
                 display.displayHint("修改房间密码格式：/passwd room-name <new-password>");
                 return false;
             }
             try {
                 String roomName = args[1];
-                String newPassword = args[2];
-                messageHandler.sendMessage(Message.createChangePasswordRequest(roomName, state.getUsername(), newPassword));
+                String newPassword = args.length > 2 ? args[2] : "";
+                messageHandler
+                        .sendMessage(Message.createChangePasswordRequest(roomName, state.getUsername(), newPassword));
                 return true;
             } catch (IOException e) {
                 display.displayError("修改密码失败: " + e.getMessage());
@@ -165,19 +166,19 @@ public class CommandHandler {
         } else {
             // 非命令消息发送到当前聊天室
             state.getCurrentRoom()
-                .map(room -> {
-                    try {
-                        messageHandler.sendMessage(Message.createRoomMessage(input, state.getUsername(), room));
-                        return true;
-                    } catch (IOException e) {
-                        display.displayError("发送消息失败: " + e.getMessage());
+                    .map(room -> {
+                        try {
+                            messageHandler.sendMessage(Message.createRoomMessage(input, state.getUsername(), room));
+                            return true;
+                        } catch (IOException e) {
+                            display.displayError("发送消息失败: " + e.getMessage());
+                            return false;
+                        }
+                    })
+                    .orElseGet(() -> {
+                        display.displayHint("请先加入一个聊天室再发送消息（使用 /join <房间名>）");
                         return false;
-                    }
-                })
-                .orElseGet(() -> {
-                    display.displayHint("请先加入一个聊天室再发送消息（使用 /join <房间名>）");
-                    return false;
-                });
+                    });
         }
     }
 
@@ -187,11 +188,15 @@ public class CommandHandler {
             return false;
         }
 
-        // 如果已经在某个聊天室中，不允许创建新聊天室
-        if (state.getCurrentRoom().isPresent()) {
-            display.displayError("您已经在聊天室中，请先使用 /leave 命令退出当前聊天室");
+        if (roomName.equals(state.getCurrentRoom().orElse(null))) {
+            display.displayError("您已经在该聊天室中！");
             return false;
         }
+
+        // 如果已经在某个聊天室中，则先离开当前聊天室
+        state.getCurrentRoom().ifPresent(currentRoom -> {
+            handleLeaveRoom(currentRoom);
+        });
 
         try {
             messageHandler.sendMessage(Message.createCreateRoomRequest(roomName, state.getUsername(), password));
@@ -208,11 +213,15 @@ public class CommandHandler {
             return false;
         }
 
-        // 如果已经在某个聊天室中，不允许加入新聊天室
-        if (state.getCurrentRoom().isPresent()) {
-            display.displayError("您已经在聊天室中，请先使用 /leave 命令退出当前聊天室");
+        if (roomName.equals(state.getCurrentRoom().orElse(null))) {
+            display.displayError("您已经在该聊天室中！");
             return false;
         }
+
+        // 如果已经在某个聊天室中，则先离开当前聊天室
+        state.getCurrentRoom().ifPresent(currentRoom -> {
+            handleLeaveRoom(currentRoom);
+        });
 
         try {
             messageHandler.sendMessage(Message.createJoinRoomRequest(roomName, state.getUsername(), password));
@@ -257,6 +266,6 @@ public class CommandHandler {
      * 只允许使用大小写字母、数字和下划线
      */
     private boolean isValidName(String name) {
-        return name.matches("^[a-zA-Z0-9_]+$");
+        return name != null && name.matches("^[a-zA-Z0-9_]+$");
     }
 }

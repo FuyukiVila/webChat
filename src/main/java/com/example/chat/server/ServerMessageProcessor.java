@@ -165,12 +165,24 @@ public class ServerMessageProcessor {
                             .sender("SERVER")
                             .build());
 
+                    // 发送加入成功消息
                     handler.sendMessage(Message.builder()
                             .type(MessageType.JOIN_ROOM_SUCCESS)
                             .content("成功加入聊天室 '" + roomName + "'")
                             .roomName(roomName)
                             .sender("SERVER")
                             .build());
+
+                    // 发送历史消息
+                    List<Message> history = room.getRecentMessages(15);
+                    if (!history.isEmpty()) {
+                        handler.sendMessage(Message.builder()
+                                .type(MessageType.ROOM_HISTORY_RESPONSE)
+                                .roomName(roomName)
+                                .sender("SERVER")
+                                .data(history)
+                                .build());
+                    }
                 } else {
                     handler.sendMessage(Message.createSystemMessage(
                         MessageType.JOIN_ROOM_FAILURE,
@@ -252,6 +264,9 @@ public class ServerMessageProcessor {
                         .timestamp(message.getTimestamp())
                         .build();
 
+                // 保存消息到房间历史记录
+                room.addMessage(broadcastMessage);
+                
                 broadcastToRoom(roomName, broadcastMessage);
             },
             () -> handler.sendMessage(Message.createSystemMessage(

@@ -53,6 +53,7 @@ public enum MessageType {
     // 房间信息相关
     ROOM_INFO_REQUEST,              // C->S: 客户端请求获取当前房间信息
     ROOM_INFO_RESPONSE,             // S->C: 服务器响应房间信息
+    ROOM_HISTORY_RESPONSE,          // S->C: 服务器发送房间历史消息
     
     // 房间密码相关
     CHANGE_ROOM_PASSWORD_REQUEST,   // C->S: 房主请求修改房间密码

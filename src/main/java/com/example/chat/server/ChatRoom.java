@@ -4,8 +4,12 @@ import lombok.Getter;
 import lombok.ToString;
 
 import java.util.Set;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.example.chat.common.Message;
 
 /**
  * 表示一个聊天室
@@ -13,7 +17,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 设计为线程安全的，因为会被多个 ClientHandler 并发访问
  */
 @Getter
-@ToString(of = { "name", "creator" })
 public class ChatRoom {
     private final String name; // 聊天室名称（唯一标识）
     private final String creator; // 创建者用户名
@@ -21,6 +24,8 @@ public class ChatRoom {
     private String password; // 房间密码，如果为null或空字符串表示无密码
     private final Set<String> members; // 当前成员列表（用户名）
     private final AtomicInteger memberCount; // 成员计数器，避免频繁计算size
+    private final List<Message> messageHistory; // 聊天记录
+    private static final int MAX_HISTORY_SIZE = 100; // 最大历史消息数量
 
     /**
      * 创建一个新的聊天室
@@ -36,6 +41,7 @@ public class ChatRoom {
         // 使用 ConcurrentHashMap 的 newKeySet 来创建线程安全的 Set
         this.members = ConcurrentHashMap.newKeySet();
         this.memberCount = new AtomicInteger(0);
+        this.messageHistory = Collections.synchronizedList(new ArrayList<>());
     }
 
     /**
@@ -134,5 +140,26 @@ public class ChatRoom {
      */
     public boolean isCreator(String username) {
         return username != null && username.equals(creator);
+    }
+    /**
+     * 添加一条消息到历史记录
+     * 如果历史记录超过最大容量，将移除最旧的消息
+     */
+    public synchronized void addMessage(Message message) {
+        if (messageHistory.size() >= MAX_HISTORY_SIZE) {
+            messageHistory.remove(0); // 移除最旧的消息
+        }
+        messageHistory.add(message);
+    }
+
+    /**
+     * 获取最近的n条消息历史
+     * 如果n大于历史记录数量，则返回所有历史记录
+     */
+    public List<Message> getRecentMessages(int n) {
+        synchronized (messageHistory) {
+            int start = Math.max(0, messageHistory.size() - n);
+            return new ArrayList<>(messageHistory.subList(start, messageHistory.size()));
+        }
     }
 }

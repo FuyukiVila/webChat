@@ -2,6 +2,7 @@ package com.example.chat.client;
 
 import com.example.chat.common.Message;
 import com.example.chat.common.MessageType;
+import java.util.List;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -26,6 +27,14 @@ public class MessageHandler {
 
     private void initializeHandlers() {
         // 注册各种消息类型的处理器
+        handlers.put(MessageType.ROOM_HISTORY_RESPONSE, (message, state) -> {
+            display.displayInfo("=== 历史消息 ===");
+            @SuppressWarnings("unchecked")
+            List<Message> history = (List<Message>) message.getData();
+            history.forEach(msg -> display.display(msg, state.getUsername()));
+            display.displayInfo("=== 历史消息结束 ===");
+        });
+
         handlers.put(MessageType.JOIN_ROOM_SUCCESS, (message, state) -> {
             state.setCurrentRoom(Optional.ofNullable(message.getRoomName()));
             display.display(message, state.getUsername());
