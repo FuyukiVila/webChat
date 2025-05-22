@@ -4,13 +4,16 @@ import com.example.chat.common.Message;
 import com.example.chat.common.MessageType;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 处理单个客户端连接的处理器
@@ -18,306 +21,144 @@ import java.util.Map;
 @Slf4j
 public class ClientHandler implements Runnable {
     private final Socket clientSocket;
-    private final ChatServer server;
+    private final ServerState serverState;
+    private final ServerMessageProcessor messageProcessor;
+    private final ReentrantLock sendLock = new ReentrantLock();
+
     private ObjectInputStream input;
     private ObjectOutputStream output;
     private String username;
-    private volatile boolean running;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
-    /**
-     * 验证名称格式（用户名或房间名）
-     * 只允许使用大小写字母、数字和下划线
-     */
-    private boolean isValidName(String name) {
-        return name != null && name.matches("^[a-zA-Z0-9_]+$");
-    }
-
-    public ClientHandler(Socket socket, ChatServer server) {
-        this.clientSocket = socket;
-        this.server = server;
-        this.running = true;
+    public ClientHandler(Socket clientSocket, ServerState serverState, ServerMessageProcessor messageProcessor) {
+        this.clientSocket = clientSocket;
+        this.serverState = serverState;
+        this.messageProcessor = messageProcessor;
     }
 
     @Override
     public void run() {
         try {
-            // 初始化输入输出流
-            this.output = new ObjectOutputStream(clientSocket.getOutputStream());
-            this.input = new ObjectInputStream(clientSocket.getInputStream());
-
-            // 处理登录
-            handleLogin();
-
-            // 主消息处理循环
-            while (running) {
-                Message message = (Message) input.readObject();
-                handleMessage(message);
+            if (initializeStreams()) {
+                if (handleLogin()) {
+                    processMessages();
+                }
             }
-        } catch (IOException e) {
-            log.error("客户端连接异常: {}", e.getMessage());
-        } catch (ClassNotFoundException e) {
-            log.error("消息类型转换错误: {}", e.getMessage());
+        } catch (Exception e) {
+            if (running.get()) {
+                log.error("客户端连接异常: {}", e.getMessage());
+            }
         } finally {
             close();
         }
     }
 
     /**
+     * 初始化输入输出流
+     */
+    private boolean initializeStreams() {
+        try {
+            output = new ObjectOutputStream(clientSocket.getOutputStream());
+            input = new ObjectInputStream(clientSocket.getInputStream());
+            running.set(true);
+            return true;
+        } catch (IOException e) {
+            log.error("初始化流失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * 处理客户端登录
      */
-    private void handleLogin() throws IOException, ClassNotFoundException {
-        while (running) {
+    private boolean handleLogin() throws IOException, ClassNotFoundException {
+        while (running.get()) {
             Message loginMessage = (Message) input.readObject();
+
             if (loginMessage.getType() != MessageType.LOGIN_REQUEST) {
                 sendMessage(Message.createSystemMessage(
-                    MessageType.ERROR_MESSAGE,
-                    "请先登录!"
-                ));
+                        MessageType.ERROR_MESSAGE,
+                        "请先登录!"));
                 continue;
             }
 
             String requestedUsername = loginMessage.getSender();
-            
-            // 验证用户名格式
+
             if (!isValidName(requestedUsername)) {
                 sendMessage(Message.createSystemMessage(
-                    MessageType.ERROR_MESSAGE,
-                    "用户名只能包含大小写字母、数字和下划线"
-                ));
+                        MessageType.ERROR_MESSAGE,
+                        "用户名只能包含大小写字母、数字和下划线"));
                 continue;
             }
 
-            if (server.addUser(requestedUsername, this)) {
-                this.username = requestedUsername;
+            if (serverState.addUser(requestedUsername, this)) {
+                username = requestedUsername;
+
                 // 发送登录成功消息，包含当前在线用户列表和可用聊天室列表
                 Map<String, Object> loginData = new HashMap<>();
-                loginData.put("users", server.getOnlineUserList());
-                loginData.put("rooms", server.getChatRoomList());
-                
-                Message loginSuccess = Message.builder()
-                    .type(MessageType.LOGIN_SUCCESS)
-                    .content("登录成功！")
-                    .data(loginData)
-                    .sender("SERVER")
-                    .build();
-                sendMessage(loginSuccess);
-                break;
+                loginData.put("users", serverState.getOnlineUserList());
+                loginData.put("rooms", serverState.getChatRoomList());
+
+                sendMessage(Message.builder()
+                        .type(MessageType.LOGIN_SUCCESS)
+                        .content("登录成功！")
+                        .data(loginData)
+                        .sender("SERVER")
+                        .build());
+
+                return true;
             } else {
                 sendMessage(Message.createSystemMessage(
-                    MessageType.LOGIN_FAILURE_USERNAME_TAKEN,
-                    "用户名 '" + requestedUsername + "' 已被占用，请选择其他用户名"
-                ));
+                        MessageType.LOGIN_FAILURE_USERNAME_TAKEN,
+                        "用户名 '" + requestedUsername + "' 已被占用，请选择其他用户名"));
             }
         }
+        return false;
     }
 
     /**
-     * 处理接收到的消息
+     * 处理消息循环
      */
-    private void handleMessage(Message message) {
-        if (!running) return;
-
-        switch (message.getType()) {
-            case LOGIN_REQUEST:
-                // 如果已经登录，返回错误消息
-                if (username != null) {
-                    sendMessage(Message.createSystemMessage(
-                        MessageType.ERROR_MESSAGE,
-                        "您已经登录，不能重复登录"
-                    ));
-                }
-                break;
-
-            case PRIVATE_MESSAGE_REQUEST:
-                server.sendPrivateMessage(message);
-                break;
-
-            case USER_LIST_REQUEST:
-                List<String> userList = server.getOnlineUserList();
-                sendMessage(Message.builder()
-                    .type(MessageType.USER_LIST_RESPONSE)
-                    .data(userList)
-                    .sender("SERVER")
-                    .build());
-                break;
-
-            case CREATE_ROOM_REQUEST:
-                handleCreateRoom(message);
-                break;
-
-            case JOIN_ROOM_REQUEST:
-                handleJoinRoom(message);
-                break;
-
-            case LEAVE_ROOM_REQUEST:
-                handleLeaveRoom(message);
-                break;
-
-            case ROOM_MESSAGE_REQUEST:
-                if (message.getRoomName() == null) {
-                    sendMessage(Message.createSystemMessage(
-                        MessageType.ERROR_MESSAGE,
-                        "消息缺少聊天室名称"
-                    ));
-                    return;
-                }
-                server.handleRoomMessage(message);
-                break;
-
-            case LIST_ROOMS_REQUEST:
-                List<String> roomList = server.getChatRoomList();
-                sendMessage(Message.builder()
-                    .type(MessageType.LIST_ROOMS_RESPONSE)
-                    .data(roomList)
-                    .build());
-                break;
-
-            case ROOM_INFO_REQUEST:
-                String targetRoom = message.getRoomName();
-                if (targetRoom == null) {
-                    sendMessage(Message.createSystemMessage(
-                        MessageType.ERROR_MESSAGE,
-                        "请求房间信息失败：聊天室名称不能为空"
-                    ));
-                    return;
-                }
-                
-                Map<String, Object> roomInfo = server.getRoomInfo(targetRoom);
-                if (roomInfo == null) {
-                    sendMessage(Message.createSystemMessage(
-                        MessageType.ERROR_MESSAGE,
-                        "请求房间信息失败：聊天室 '" + targetRoom + "' 不存在"
-                    ));
-                } else {
-                    sendMessage(Message.builder()
-                        .type(MessageType.ROOM_INFO_RESPONSE)
-                        .data(roomInfo)
-                        .roomName(targetRoom)
-                        .build());
-                }
-                break;
-
-            case LOGOUT_REQUEST:
-                sendMessage(Message.createSystemMessage(
-                    MessageType.LOGOUT_CONFIRMATION,
-                    "您已成功登出"
-                ));
-                close();
-                break;
-
-            default:
-                log.warn("收到未知类型的消息: {}", message.getType());
-                break;
+    private void processMessages() {
+        try {
+            while (running.get()) {
+                Message message = (Message) input.readObject();
+                messageProcessor.processMessage(message, this);
+            }
+        } catch (EOFException | SocketException e) {
+            if (running.get()) {
+                // 客户端正常断开连接，不需要记录错误
+                log.debug("客户端断开连接: {}", clientSocket.getRemoteSocketAddress());
+            }
+        } catch (IOException e) {
+            if (running.get() && e.getMessage() != null) {
+                log.error("接收消息失败: {}", e.getMessage());
+            }
+        } catch (ClassNotFoundException e) {
+            if (running.get()) {
+                log.error("消息类型转换错误: {}", e.getMessage());
+            }
         }
-    }
-
-    /**
-     * 处理创建聊天室请求
-     */
-    private void handleCreateRoom(Message message) {
-        String roomName = message.getRoomName();
-        if (roomName == null || roomName.trim().isEmpty()) {
-            sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "聊天室名称不能为空"
-            ));
-            return;
-        }
-
-        // 验证房间名格式
-        if (!isValidName(roomName)) {
-            sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "房间名只能包含大小写字母、数字和下划线"
-            ));
-            return;
-        }
-
-        if (server.createChatRoom(roomName, username)) {
-            // 创建成功后自动加入
-            // 创建者在 ChatRoom 构造时已自动加入。
-            // 直接发送成功消息，让客户端更新状态。
-            sendMessage(Message.builder()
-                .type(MessageType.JOIN_ROOM_SUCCESS) // Client uses this to set currentRoom
-                .content("聊天室 '" + roomName + "' 创建成功并已自动加入")
-                .roomName(roomName)
-                .sender("SERVER")
-                .build());
-        } else {
-            sendMessage(Message.createSystemMessage(
-                MessageType.CREATE_ROOM_FAILURE,
-                "创建聊天室失败：名称 '" + roomName + "' 已被使用"
-            ));
-        }
-    }
-
-    /**
-     * 处理加入聊天室请求
-     */
-    private void handleJoinRoom(Message message) {
-        String roomName = message.getRoomName();
-        if (roomName == null || roomName.trim().isEmpty()) {
-            sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "聊天室名称不能为空"
-            ));
-            return;
-        }
-
-        // 验证房间名格式
-        if (!isValidName(roomName)) {
-            sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "房间名只能包含大小写字母、数字和下划线"
-            ));
-            return;
-        }
-
-        if (server.joinChatRoom(username, roomName)) {
-            sendMessage(Message.builder()
-                .type(MessageType.JOIN_ROOM_SUCCESS)
-                .content("成功加入聊天室 '" + roomName + "'")
-                .roomName(roomName) // Explicitly set roomName
-                .sender("SERVER")
-                .build());
-        } else {
-            sendMessage(Message.createSystemMessage(
-                MessageType.JOIN_ROOM_FAILURE,
-                "加入聊天室失败：聊天室 '" + roomName + "' 不存在或你已经在该聊天室中"
-            ));
-        }
-    }
-
-    /**
-     * 处理离开聊天室请求
-     */
-    private void handleLeaveRoom(Message message) {
-        String roomName = message.getRoomName();
-        if (roomName == null || roomName.trim().isEmpty()) {
-            sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "聊天室名称不能为空"
-            ));
-            return;
-        }
-
-        server.handleUserLeaveRoom(username, roomName);
-        sendMessage(Message.createSystemMessage(
-            MessageType.LEAVE_ROOM_SUCCESS,
-            "已离开聊天室 '" + roomName + "'"
-        ));
     }
 
     /**
      * 发送消息给客户端
+     * 使用ReentrantLock确保消息发送的原子性和顺序性
      */
-    public synchronized void sendMessage(Message message) {
+    public void sendMessage(Message message) {
+        sendLock.lock();
         try {
-            output.writeObject(message);
-            output.flush();
+            if (running.get() && output != null) {
+                output.writeObject(message);
+                output.flush();
+            }
         } catch (IOException e) {
-            log.error("发送消息失败: {}", e.getMessage());
+            if (running.get() && e.getMessage() != null) {
+                log.error("发送消息失败: {}", e.getMessage());
+            }
             close();
+        } finally {
+            sendLock.unlock();
         }
     }
 
@@ -325,19 +166,57 @@ public class ClientHandler implements Runnable {
      * 关闭客户端连接
      */
     public void close() {
-        if (!running) return;
-        running = false;
+        if (running.compareAndSet(true, false)) {
+            if (username != null) {
+                serverState.removeUser(username);
+            }
 
-        if (username != null) {
-            server.removeUser(username);
-        }
+            try {
+                if (input != null) {
+                    try {
+                        input.close();
+                    } catch (IOException ignored) {
+                        // 忽略关闭流时的异常
+                    }
+                    input = null;
+                }
 
-        try {
-            if (input != null) input.close();
-            if (output != null) output.close();
-            if (clientSocket != null) clientSocket.close();
-        } catch (IOException e) {
-            log.error("关闭客户端连接时发生错误: {}", e.getMessage());
+                if (output != null) {
+                    try {
+                        output.close();
+                    } catch (IOException ignored) {
+                        // 忽略关闭流时的异常
+                    }
+                    output = null;
+                }
+
+                if (!clientSocket.isClosed()) {
+                    try {
+                        clientSocket.close();
+                    } catch (IOException ignored) {
+                        // 忽略关闭套接字时的异常
+                    }
+                }
+            } catch (Exception e) {
+                if (e.getMessage() != null) {
+                    log.error("关闭客户端连接时发生错误: {}", e.getMessage());
+                }
+            }
         }
+    }
+
+    /**
+     * 获取用户名
+     */
+    public String getUsername() {
+        return username;
+    }
+
+    /**
+     * 验证名称格式（用户名或房间名）
+     * 只允许使用大小写字母、数字和下划线
+     */
+    private boolean isValidName(String name) {
+        return name != null && name.matches("^[a-zA-Z0-9_]+$");
     }
 }
