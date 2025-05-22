@@ -15,13 +15,13 @@ import java.util.Arrays;
 public class CommandHandler {
     private final ClientState state;
     private final MessageHandler messageHandler;
-    private final MessageProcessor processor;
+    private final MessageDisplay display;
     private final Map<String, BiFunction<String[], ClientState, Boolean>> commands;
 
     public CommandHandler(ClientState state, MessageHandler messageHandler) {
         this.state = state;
         this.messageHandler = messageHandler;
-        this.processor = new MessageProcessor();
+        this.display = new MessageDisplay();
         this.commands = new HashMap<>();
         initializeCommands();
     }
@@ -35,7 +35,7 @@ public class CommandHandler {
         });
 
         commands.put("/help", (args, state) -> {
-            processor.displayHelp();
+            display.displayHelp();
             return true;
         });
 
@@ -47,7 +47,7 @@ public class CommandHandler {
                         .build());
                 return true;
             } catch (IOException e) {
-                processor.displayError("发送退出请求失败: " + e.getMessage());
+                display.displayError("发送退出请求失败: " + e.getMessage());
                 return false;
             }
         });
@@ -57,7 +57,7 @@ public class CommandHandler {
                 messageHandler.sendMessage(Message.createUserListRequest(state.getUsername()));
                 return true;
             } catch (IOException e) {
-                processor.displayError("获取用户列表失败: " + e.getMessage());
+                display.displayError("获取用户列表失败: " + e.getMessage());
                 return false;
             }
         });
@@ -67,14 +67,14 @@ public class CommandHandler {
                 messageHandler.sendMessage(Message.createListRoomsRequest(state.getUsername()));
                 return true;
             } catch (IOException e) {
-                processor.displayError("获取聊天室列表失败: " + e.getMessage());
+                display.displayError("获取聊天室列表失败: " + e.getMessage());
                 return false;
             }
         });
 
         commands.put("/create-room", (args, state) -> {
             if (args.length < 2) {
-                processor.displayHint("创建聊天室格式：/create-room <房间名>");
+                display.displayHint("创建聊天室格式：/create-room <房间名>");
                 return false;
             }
             return handleCreateRoom(args[1]);
@@ -82,7 +82,7 @@ public class CommandHandler {
 
         commands.put("/join", (args, state) -> {
             if (args.length < 2) {
-                processor.displayHint("加入聊天室格式：/join <房间名>");
+                display.displayHint("加入聊天室格式：/join <房间名>");
                 return false;
             }
             return handleJoinRoom(args[1]);
@@ -92,7 +92,7 @@ public class CommandHandler {
             return state.getCurrentRoom()
                     .map(this::handleLeaveRoom)
                     .orElseGet(() -> {
-                        processor.displayError("您当前不在任何聊天室中");
+                        display.displayError("您当前不在任何聊天室中");
                         return false;
                     });
         });
@@ -104,19 +104,19 @@ public class CommandHandler {
                             messageHandler.sendMessage(Message.createRoomInfoRequest(state.getUsername(), room));
                             return true;
                         } catch (IOException e) {
-                            processor.displayError("获取房间信息失败: " + e.getMessage());
+                            display.displayError("获取房间信息失败: " + e.getMessage());
                             return false;
                         }
                     })
                     .orElseGet(() -> {
-                        processor.displayError("您当前不在任何聊天室中");
+                        display.displayError("您当前不在任何聊天室中");
                         return false;
                     });
         });
 
         commands.put("/pm", (args, state) -> {
             if (args.length < 3) {
-                processor.displayHint("私聊格式：/pm <用户名> <消息>");
+                display.displayHint("私聊格式：/pm <用户名> <消息>");
                 return false;
             }
             return handlePrivateMessage(args);
@@ -140,7 +140,7 @@ public class CommandHandler {
             String command = args[0];
 
             commands.getOrDefault(command, (cmdArgs, state) -> {
-                processor.displayError("无效的命令。使用 /help 查看可用命令。");
+                display.displayError("无效的命令。使用 /help 查看可用命令。");
                 return false;
             }).apply(args, state);
         } else {
@@ -151,12 +151,12 @@ public class CommandHandler {
                         messageHandler.sendMessage(Message.createRoomMessage(input, state.getUsername(), room));
                         return true;
                     } catch (IOException e) {
-                        processor.displayError("发送消息失败: " + e.getMessage());
+                        display.displayError("发送消息失败: " + e.getMessage());
                         return false;
                     }
                 })
                 .orElseGet(() -> {
-                    processor.displayHint("请先加入一个聊天室再发送消息（使用 /join <房间名>）");
+                    display.displayHint("请先加入一个聊天室再发送消息（使用 /join <房间名>）");
                     return false;
                 });
         }
@@ -164,13 +164,13 @@ public class CommandHandler {
 
     private boolean handleCreateRoom(String roomName) {
         if (!isValidName(roomName)) {
-            processor.displayError("房间名只能包含大小写字母、数字和下划线！");
+            display.displayError("房间名只能包含大小写字母、数字和下划线！");
             return false;
         }
 
         // 如果已经在某个聊天室中，不允许创建新聊天室
         if (state.getCurrentRoom().isPresent()) {
-            processor.displayError("您已经在聊天室中，请先使用 /leave 命令退出当前聊天室");
+            display.displayError("您已经在聊天室中，请先使用 /leave 命令退出当前聊天室");
             return false;
         }
 
@@ -178,20 +178,20 @@ public class CommandHandler {
             messageHandler.sendMessage(Message.createCreateRoomRequest(roomName, state.getUsername()));
             return true;
         } catch (IOException e) {
-            processor.displayError("创建聊天室失败: " + e.getMessage());
+            display.displayError("创建聊天室失败: " + e.getMessage());
             return false;
         }
     }
 
     private boolean handleJoinRoom(String roomName) {
         if (!isValidName(roomName)) {
-            processor.displayError("房间名只能包含大小写字母、数字和下划线！");
+            display.displayError("房间名只能包含大小写字母、数字和下划线！");
             return false;
         }
 
         // 如果已经在某个聊天室中，不允许加入新聊天室
         if (state.getCurrentRoom().isPresent()) {
-            processor.displayError("您已经在聊天室中，请先使用 /leave 命令退出当前聊天室");
+            display.displayError("您已经在聊天室中，请先使用 /leave 命令退出当前聊天室");
             return false;
         }
 
@@ -199,7 +199,7 @@ public class CommandHandler {
             messageHandler.sendMessage(Message.createJoinRoomRequest(roomName, state.getUsername()));
             return true;
         } catch (IOException e) {
-            processor.displayError("加入聊天室失败: " + e.getMessage());
+            display.displayError("加入聊天室失败: " + e.getMessage());
             return false;
         }
     }
@@ -209,7 +209,7 @@ public class CommandHandler {
             messageHandler.sendMessage(Message.createLeaveRoomRequest(roomName, state.getUsername()));
             return true;
         } catch (IOException e) {
-            processor.displayError("离开聊天室失败: " + e.getMessage());
+            display.displayError("离开聊天室失败: " + e.getMessage());
             return false;
         }
     }
@@ -220,7 +220,7 @@ public class CommandHandler {
 
         // 检查是否试图给自己发送私聊消息
         if (targetUser.equals(state.getUsername())) {
-            processor.displayError("不能向自己发送私聊消息");
+            display.displayError("不能向自己发送私聊消息");
             return false;
         }
 
@@ -228,7 +228,7 @@ public class CommandHandler {
             messageHandler.sendMessage(Message.createPrivateMessage(content, state.getUsername(), targetUser));
             return true;
         } catch (IOException e) {
-            processor.displayError("发送私聊消息失败: " + e.getMessage());
+            display.displayError("发送私聊消息失败: " + e.getMessage());
             return false;
         }
     }

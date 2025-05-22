@@ -24,13 +24,13 @@ public class ChatClient {
     private final ClientState state;
     private final MessageHandler messageHandler;
     private final CommandHandler commandHandler;
-    private final MessageProcessor processor;
+    private final MessageDisplay display;
 
     public ChatClient(String host, int port) {
         this.state = new ClientState(host, port);
         this.messageHandler = new MessageHandler(state);
         this.commandHandler = new CommandHandler(state, messageHandler);
-        this.processor = new MessageProcessor();
+        this.display = new MessageDisplay();
     }
 
     public ChatClient() {
@@ -41,12 +41,12 @@ public class ChatClient {
      * 启动客户端
      */
     public void start() {
-        processor.displayInfo("\n=== 聊天客户端启动 ===\n* 服务器地址: " + state.getHost() + 
+        display.displayInfo("\n=== 聊天客户端启动 ===\n* 服务器地址: " + state.getHost() + 
                              "\n* 端口: " + state.getPort() + 
                              "\n* 按 Ctrl+C 退出程序\n===================\n");
 
         try {
-            processor.displayInfo(String.format("正在连接到服务器 %s:%d...", state.getHost(), state.getPort()));
+            display.displayInfo(String.format("正在连接到服务器 %s:%d...", state.getHost(), state.getPort()));
 
             initializeConnection()
                     .flatMap(this::handleLogin)
@@ -72,7 +72,7 @@ public class ChatClient {
         state.setOutput(new ObjectOutputStream(socket.getOutputStream()));
         state.setInput(new ObjectInputStream(socket.getInputStream()));
         state.setRunning(true);
-        processor.displayInfo("已成功连接到服务器");
+        display.displayInfo("已成功连接到服务器");
         return Optional.of(true);
     }
 
@@ -82,7 +82,7 @@ public class ChatClient {
     private Optional<Boolean> handleLogin(boolean connected) {
         try {
             while (true) {  // 修改为无限循环，直到成功登录或发生异常
-                processor.displayInfo("请输入您的用户名：");
+                display.displayInfo("请输入您的用户名：");
                 String input = state.getScanner().nextLine().trim();
 
                 if (!validateUsername(input)) {
@@ -105,7 +105,7 @@ public class ChatClient {
             }
         } catch (IOException | ClassNotFoundException e) {
             log.error("登录过程中发生错误: {}", e.getMessage());
-            processor.displayError("连接异常，请重试...");
+            display.displayError("连接异常，请重试...");
         }
         return Optional.of(false);
     }
@@ -115,11 +115,11 @@ public class ChatClient {
      */
     private boolean validateUsername(String username) {
         if (username.isEmpty()) {
-            processor.displayError("用户名不能为空，请重新输入！");
+            display.displayError("用户名不能为空，请重新输入！");
             return false;
         }
         if (!username.matches("^[a-zA-Z0-9_]+$")) {
-            processor.displayError("用户名只能包含大小写字母、数字和下划线，请重新输入！");
+            display.displayError("用户名只能包含大小写字母、数字和下划线，请重新输入！");
             return false;
         }
         return true;
@@ -133,34 +133,34 @@ public class ChatClient {
         switch (response.getType()) {
             case LOGIN_SUCCESS:
                 state.setUsername(username);
-                processor.displayInfo("登录成功！");
+                display.displayInfo("登录成功！");
 
                 // 显示在线用户列表和可用聊天室
                 Map<String, Object> loginData = (Map<String, Object>) response.getData();
                 Optional.ofNullable(loginData.get("users"))
                         .map(users -> (List<String>) users)
                         .filter(users -> !users.isEmpty())
-                        .ifPresent(users -> processor.displayInfo("当前在线用户：" + String.join(", ", users)));
+                        .ifPresent(users -> display.displayInfo("当前在线用户：" + String.join(", ", users)));
 
                 Optional.ofNullable(loginData.get("rooms"))
                         .map(rooms -> (List<String>) rooms)
                         .filter(rooms -> !rooms.isEmpty())
-                        .ifPresent(rooms -> processor.displayInfo("当前可用聊天室：" + String.join(", ", rooms)));
+                        .ifPresent(rooms -> display.displayInfo("当前可用聊天室：" + String.join(", ", rooms)));
 
                 return true;
 
             case LOGIN_FAILURE_USERNAME_TAKEN:
-                processor.display(response, null);
+                display.display(response, null);
                 state.setRunning(false); // 中断内部循环
                 return false;
 
             case ERROR_MESSAGE:
-                processor.display(response, null);
+                display.display(response, null);
                 return true;
 
             case USER_JOINED_NOTIFICATION:
             case USER_LEFT_NOTIFICATION:
-                processor.display(response, username);
+                display.display(response, username);
                 return false;
 
             default:
@@ -195,7 +195,7 @@ public class ChatClient {
      * 处理用户输入
      */
     private void processUserInput() {
-        processor.displayHelp();
+        display.displayHelp();
 
         while (state.isRunning()) {
             String input = state.getScanner().nextLine().trim();

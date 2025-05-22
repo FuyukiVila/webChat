@@ -15,12 +15,12 @@ import java.util.function.BiConsumer;
 public class MessageHandler {
     private final ClientState state;
     private final Map<MessageType, BiConsumer<Message, ClientState>> handlers;
-    private final MessageProcessor processor;
+    private final MessageDisplay display;
 
     public MessageHandler(ClientState state) {
         this.state = state;
         this.handlers = new HashMap<>();
-        this.processor = new MessageProcessor();
+        this.display = new MessageDisplay();
         initializeHandlers();
     }
 
@@ -28,30 +28,30 @@ public class MessageHandler {
         // 注册各种消息类型的处理器
         handlers.put(MessageType.JOIN_ROOM_SUCCESS, (message, state) -> {
             state.setCurrentRoom(Optional.ofNullable(message.getRoomName()));
-            processor.display(message, state.getUsername());
+            display.display(message, state.getUsername());
         });
 
         handlers.put(MessageType.LEAVE_ROOM_SUCCESS, (message, state) -> {
             state.setCurrentRoom(Optional.empty());
-            processor.display(message, state.getUsername());
+            display.display(message, state.getUsername());
         });
 
         handlers.put(MessageType.ROOM_INFO_RESPONSE, (message, state) ->
-            processor.display(message, state.getUsername()));
+            display.display(message, state.getUsername()));
 
         handlers.put(MessageType.LIST_ROOMS_RESPONSE, (message, state) ->
-            processor.display(message, state.getUsername()));
+            display.display(message, state.getUsername()));
 
         handlers.put(MessageType.USER_LIST_RESPONSE, (message, state) ->
-            processor.display(message, state.getUsername()));
+            display.display(message, state.getUsername()));
 
         handlers.put(MessageType.LOGOUT_CONFIRMATION, (message, state) -> {
-            processor.display(message, state.getUsername());
+            display.display(message, state.getUsername());
             state.close();
         });
 
         handlers.put(MessageType.SERVER_SHUTDOWN_NOTIFICATION, (message, state) -> {
-            processor.display(message, state.getUsername());
+            display.display(message, state.getUsername());
             state.close();
         });
     }
@@ -61,7 +61,7 @@ public class MessageHandler {
      */
     public void handleMessage(Message message) {
         handlers.getOrDefault(message.getType(),
-            (msg, state) -> processor.display(msg, state.getUsername()))
+            (msg, state) -> display.display(msg, state.getUsername()))
             .accept(message, state);
     }
 

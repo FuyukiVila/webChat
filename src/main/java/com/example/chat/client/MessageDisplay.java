@@ -6,7 +6,7 @@ import com.example.chat.common.MessageType;
 /**
  * 消息显示器，负责格式化并显示各种类型的消息
  */
-public class MessageProcessor {
+public class MessageDisplay {
     
     /**
      * 显示消息
