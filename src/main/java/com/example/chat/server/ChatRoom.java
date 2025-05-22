@@ -1,7 +1,6 @@
 package com.example.chat.server;
 
 import lombok.Getter;
-import lombok.ToString;
 
 import java.util.Set;
 import java.util.List;
