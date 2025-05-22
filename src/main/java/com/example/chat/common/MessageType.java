@@ -53,6 +53,11 @@ public enum MessageType {
     // 房间信息相关
     ROOM_INFO_REQUEST,              // C->S: 客户端请求获取当前房间信息
     ROOM_INFO_RESPONSE,             // S->C: 服务器响应房间信息
+    
+    // 房间密码相关
+    CHANGE_ROOM_PASSWORD_REQUEST,   // C->S: 房主请求修改房间密码
+    CHANGE_ROOM_PASSWORD_SUCCESS,   // S->C: 服务器通知修改密码成功
+    CHANGE_ROOM_PASSWORD_FAILURE,   // S->C: 服务器通知修改密码失败（如非房主）
 
     // 本地消息类型（客户端内部使用）
     LOCAL_ERROR,                    // 本地错误提示（红色）

@@ -27,6 +27,23 @@ public class CommandHandler {
     }
 
     private void initializeCommands() {
+        // 添加修改密码命令
+        commands.put("/passwd", (args, state) -> {
+            if (args.length < 3) {
+                display.displayHint("修改房间密码格式：/passwd room-name <new-password>");
+                return false;
+            }
+            try {
+                String roomName = args[1];
+                String newPassword = args[2];
+                messageHandler.sendMessage(Message.createChangePasswordRequest(roomName, state.getUsername(), newPassword));
+                return true;
+            } catch (IOException e) {
+                display.displayError("修改密码失败: " + e.getMessage());
+                return false;
+            }
+        });
+
         commands.put("/clear", (args, state) -> {
             // 使用ANSI转义序列清屏
             System.out.print("\033[H\033[2J");
@@ -74,18 +91,20 @@ public class CommandHandler {
 
         commands.put("/create-room", (args, state) -> {
             if (args.length < 2) {
-                display.displayHint("创建聊天室格式：/create-room <房间名>");
+                display.displayHint("创建聊天室格式：/create-room room-name <password>");
                 return false;
             }
-            return handleCreateRoom(args[1]);
+            String password = args.length > 2 ? args[2] : "";
+            return handleCreateRoom(args[1], password);
         });
 
         commands.put("/join", (args, state) -> {
             if (args.length < 2) {
-                display.displayHint("加入聊天室格式：/join <房间名>");
+                display.displayHint("加入聊天室格式：/join room-name <password>");
                 return false;
             }
-            return handleJoinRoom(args[1]);
+            String password = args.length > 2 ? args[2] : "";
+            return handleJoinRoom(args[1], password);
         });
 
         commands.put("/leave", (args, state) -> {
@@ -162,7 +181,7 @@ public class CommandHandler {
         }
     }
 
-    private boolean handleCreateRoom(String roomName) {
+    private boolean handleCreateRoom(String roomName, String password) {
         if (!isValidName(roomName)) {
             display.displayError("房间名只能包含大小写字母、数字和下划线！");
             return false;
@@ -175,7 +194,7 @@ public class CommandHandler {
         }
 
         try {
-            messageHandler.sendMessage(Message.createCreateRoomRequest(roomName, state.getUsername()));
+            messageHandler.sendMessage(Message.createCreateRoomRequest(roomName, state.getUsername(), password));
             return true;
         } catch (IOException e) {
             display.displayError("创建聊天室失败: " + e.getMessage());
@@ -183,7 +202,7 @@ public class CommandHandler {
         }
     }
 
-    private boolean handleJoinRoom(String roomName) {
+    private boolean handleJoinRoom(String roomName, String password) {
         if (!isValidName(roomName)) {
             display.displayError("房间名只能包含大小写字母、数字和下划线！");
             return false;
@@ -196,7 +215,7 @@ public class CommandHandler {
         }
 
         try {
-            messageHandler.sendMessage(Message.createJoinRoomRequest(roomName, state.getUsername()));
+            messageHandler.sendMessage(Message.createJoinRoomRequest(roomName, state.getUsername(), password));
             return true;
         } catch (IOException e) {
             display.displayError("加入聊天室失败: " + e.getMessage());

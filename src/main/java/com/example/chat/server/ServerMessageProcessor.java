@@ -38,6 +38,7 @@ public class ServerMessageProcessor {
         handlers.put(MessageType.LIST_ROOMS_REQUEST, this::handleListRoomsRequest);
         handlers.put(MessageType.ROOM_INFO_REQUEST, this::handleRoomInfoRequest);
         handlers.put(MessageType.LOGOUT_REQUEST, this::handleLogout);
+        handlers.put(MessageType.CHANGE_ROOM_PASSWORD_REQUEST, this::handleChangePassword);
     }
 
     /**
@@ -94,6 +95,7 @@ public class ServerMessageProcessor {
     private void handleCreateRoom(Message message, ClientHandler handler) {
         String roomName = message.getRoomName();
         String username = message.getSender();
+        String password = (String) message.getData();
 
         if (!isValidName(roomName)) {
             handler.sendMessage(Message.createSystemMessage(
@@ -103,7 +105,15 @@ public class ServerMessageProcessor {
             return;
         }
 
-        ChatRoom newRoom = new ChatRoom(roomName, username);
+        if (password != null && !password.isEmpty() && !password.matches("^[a-zA-Z0-9_]+$")) {
+            handler.sendMessage(Message.createSystemMessage(
+                MessageType.ERROR_MESSAGE,
+                "密码只能包含大小写字母、数字和下划线"
+            ));
+            return;
+        }
+
+        ChatRoom newRoom = new ChatRoom(roomName, username, password);
         if (serverState.addChatRoom(roomName, newRoom)) {
             broadcastSystemMessage(Message.createSystemMessage(
                 MessageType.CREATE_ROOM_SUCCESS,
@@ -126,6 +136,7 @@ public class ServerMessageProcessor {
     private void handleJoinRoom(Message message, ClientHandler handler) {
         String roomName = message.getRoomName();
         String username = message.getSender();
+        String password = (String) message.getData();
 
         if (!isValidName(roomName)) {
             handler.sendMessage(Message.createSystemMessage(
@@ -137,6 +148,14 @@ public class ServerMessageProcessor {
 
         serverState.getChatRoom(roomName).ifPresentOrElse(
             room -> {
+                if (!room.validatePassword(password)) {
+                    handler.sendMessage(Message.createSystemMessage(
+                        MessageType.JOIN_ROOM_FAILURE,
+                        "加入聊天室失败：密码错误"
+                    ));
+                    return;
+                }
+
                 if (room.addMember(username)) {
                     // 通知房间内所有成员有新用户加入
                     broadcastToRoom(roomName, Message.builder()
@@ -346,5 +365,50 @@ public class ServerMessageProcessor {
      */
     private boolean isValidName(String name) {
         return name != null && name.matches("^[a-zA-Z0-9_]+$");
-    }
+        }
+    
+        /**
+         * 处理修改房间密码请求
+         */
+        private void handleChangePassword(Message message, ClientHandler handler) {
+            String roomName = message.getRoomName();
+            String username = message.getSender();
+            String newPassword = (String) message.getData();
+    
+            if (newPassword != null && !newPassword.isEmpty() && !newPassword.matches("^[a-zA-Z0-9_]+$")) {
+                handler.sendMessage(Message.createSystemMessage(
+                    MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
+                    "密码只能包含大小写字母、数字和下划线"
+                ));
+                return;
+            }
+    
+            serverState.getChatRoom(roomName).ifPresentOrElse(
+                room -> {
+                    if (!room.isCreator(username)) {
+                        handler.sendMessage(Message.createSystemMessage(
+                            MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
+                            "修改密码失败：只有房主可以修改密码"
+                        ));
+                        return;
+                    }
+    
+                    if (room.changePassword(username, newPassword)) {
+                        handler.sendMessage(Message.createSystemMessage(
+                            MessageType.CHANGE_ROOM_PASSWORD_SUCCESS,
+                            "房间密码修改成功"
+                        ));
+                    } else {
+                        handler.sendMessage(Message.createSystemMessage(
+                            MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
+                            "修改密码失败：密码格式错误"
+                        ));
+                    }
+                },
+                () -> handler.sendMessage(Message.createSystemMessage(
+                    MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
+                    "修改密码失败：聊天室 '" + roomName + "' 不存在"
+                ))
+            );
+        }
 }

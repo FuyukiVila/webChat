@@ -18,6 +18,7 @@ public class ChatRoom {
     private final String name; // 聊天室名称（唯一标识）
     private final String creator; // 创建者用户名
     private final long creationTime; // 创建时间
+    private String password; // 房间密码，如果为null或空字符串表示无密码
     private final Set<String> members; // 当前成员列表（用户名）
     private final AtomicInteger memberCount; // 成员计数器，避免频繁计算size
 
@@ -27,9 +28,10 @@ public class ChatRoom {
      * @param name    聊天室名称
      * @param creator 创建者用户名
      */
-    public ChatRoom(String name, String creator) {
+    public ChatRoom(String name, String creator, String password) {
         this.name = name;
         this.creator = creator;
+        this.password = password;
         this.creationTime = System.currentTimeMillis();
         // 使用 ConcurrentHashMap 的 newKeySet 来创建线程安全的 Set
         this.members = ConcurrentHashMap.newKeySet();
@@ -95,5 +97,42 @@ public class ChatRoom {
      */
     public Set<String> getMembers() {
         return Set.copyOf(members);
+    }
+
+    /**
+     * 验证密码是否正确
+     * 如果房间没有密码（password为null或空字符串），则始终返回true
+     */
+    public synchronized boolean validatePassword(String inputPassword) {
+        if (password == null || password.isEmpty()) {
+            return true;
+        }
+        return password.equals(inputPassword);
+    }
+
+    /**
+     * 修改房间密码
+     * 只有房主可以修改密码
+     * 
+     * @param username    请求修改密码的用户
+     * @param newPassword 新密码
+     * @return true 如果修改成功，false 如果用户不是房主
+     */
+    public synchronized boolean changePassword(String username, String newPassword) {
+        if (!isCreator(username)) {
+            return false;
+        }
+        if (newPassword != null && !newPassword.matches("^[a-zA-Z0-9_]*$")) {
+            return false;
+        }
+        this.password = newPassword;
+        return true;
+    }
+
+    /**
+     * 检查用户是否是房主
+     */
+    public boolean isCreator(String username) {
+        return username != null && username.equals(creator);
     }
 }
