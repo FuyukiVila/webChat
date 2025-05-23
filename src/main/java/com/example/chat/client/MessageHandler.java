@@ -45,14 +45,12 @@ public class MessageHandler {
             display.display(message, state.getUsername());
         });
 
-        handlers.put(MessageType.ROOM_INFO_RESPONSE, (message, state) ->
-            display.display(message, state.getUsername()));
+        handlers.put(MessageType.ROOM_INFO_RESPONSE, (message, state) -> display.display(message, state.getUsername()));
 
-        handlers.put(MessageType.LIST_ROOMS_RESPONSE, (message, state) ->
-            display.display(message, state.getUsername()));
+        handlers.put(MessageType.LIST_ROOMS_RESPONSE,
+                (message, state) -> display.display(message, state.getUsername()));
 
-        handlers.put(MessageType.USER_LIST_RESPONSE, (message, state) ->
-            display.display(message, state.getUsername()));
+        handlers.put(MessageType.USER_LIST_RESPONSE, (message, state) -> display.display(message, state.getUsername()));
 
         handlers.put(MessageType.LOGOUT_CONFIRMATION, (message, state) -> {
             display.display(message, state.getUsername());
@@ -70,8 +68,8 @@ public class MessageHandler {
      */
     public void handleMessage(Message message) {
         handlers.getOrDefault(message.getType(),
-            (msg, state) -> display.display(msg, state.getUsername()))
-            .accept(message, state);
+                (msg, state) -> display.display(msg, state.getUsername()))
+                .accept(message, state);
     }
 
     /**

@@ -140,6 +140,7 @@ public class ChatRoom {
     public boolean isCreator(String username) {
         return username != null && username.equals(creator);
     }
+
     /**
      * 添加一条消息到历史记录
      * 如果历史记录超过最大容量，将移除最旧的消息

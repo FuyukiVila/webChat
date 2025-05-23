@@ -18,13 +18,13 @@ import java.util.Date;
 @AllArgsConstructor
 public class Message implements Serializable {
     private static final long serialVersionUID = 3L; // 更新版本号，因为添加了新字段
-    
-    private MessageType type;          // 消息类型
-    private String content;            // 消息内容
-    private String sender;             // 发送者用户名
-    private String receiver;           // 接收者用户名（仅用于私聊）
-    private String roomName;           // 聊天室名称（用于聊天室相关消息）
-    private Object data;               // 附加数据（如用户列表、聊天室列表、房间密码等）
+
+    private MessageType type; // 消息类型
+    private String content; // 消息内容
+    private String sender; // 发送者用户名
+    private String receiver; // 接收者用户名（仅用于私聊）
+    private String roomName; // 聊天室名称（用于聊天室相关消息）
+    private Object data; // 附加数据（如用户列表、聊天室列表、房间密码等）
     @Builder.Default
     private Date timestamp = new Date(); // 消息时间戳
 
@@ -74,7 +74,7 @@ public class Message implements Serializable {
                 .type(MessageType.CREATE_ROOM_REQUEST)
                 .sender(username)
                 .roomName(roomName)
-                .data(password)  // 使用data字段存储密码
+                .data(password) // 使用data字段存储密码
                 .timestamp(new Date())
                 .build();
     }
@@ -87,7 +87,7 @@ public class Message implements Serializable {
                 .type(MessageType.JOIN_ROOM_REQUEST)
                 .sender(username)
                 .roomName(roomName)
-                .data(password)  // 使用data字段存储密码
+                .data(password) // 使用data字段存储密码
                 .timestamp(new Date())
                 .build();
     }
@@ -148,7 +148,7 @@ public class Message implements Serializable {
                 .timestamp(new Date())
                 .build();
     }
-    
+
     /**
      * 创建一个修改房间密码的请求消息
      */
@@ -157,7 +157,7 @@ public class Message implements Serializable {
                 .type(MessageType.CHANGE_ROOM_PASSWORD_REQUEST)
                 .sender(username)
                 .roomName(roomName)
-                .data(newPassword)  // 使用data字段存储新密码
+                .data(newPassword) // 使用data字段存储新密码
                 .timestamp(new Date())
                 .build();
     }

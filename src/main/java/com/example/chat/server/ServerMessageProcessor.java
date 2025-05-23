@@ -45,9 +45,8 @@ public class ServerMessageProcessor {
      * 处理消息
      */
     public void processMessage(Message message, ClientHandler handler) {
-        handlers.getOrDefault(message.getType(), (msg, h) -> 
-            log.warn("收到未知类型的消息: {}", msg.getType())
-        ).accept(message, handler);
+        handlers.getOrDefault(message.getType(), (msg, h) -> log.warn("收到未知类型的消息: {}", msg.getType())).accept(message,
+                handler);
     }
 
     /**
@@ -66,15 +65,13 @@ public class ServerMessageProcessor {
                 .build();
 
         targetHandler.ifPresentOrElse(
-            handler -> {
-                handler.sendMessage(deliveryMessage);
-                senderHandler.ifPresent(sh -> sh.sendMessage(deliveryMessage));
-            },
-            () -> senderHandler.ifPresent(sh -> sh.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "用户 " + message.getReceiver() + " 不存在或已离线"
-            )))
-        );
+                handler -> {
+                    handler.sendMessage(deliveryMessage);
+                    senderHandler.ifPresent(sh -> sh.sendMessage(deliveryMessage));
+                },
+                () -> senderHandler.ifPresent(sh -> sh.sendMessage(Message.createSystemMessage(
+                        MessageType.ERROR_MESSAGE,
+                        "用户 " + message.getReceiver() + " 不存在或已离线"))));
     }
 
     /**
@@ -99,34 +96,30 @@ public class ServerMessageProcessor {
 
         if (!isValidName(roomName)) {
             handler.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "房间名只能包含大小写字母、数字和下划线"
-            ));
+                    MessageType.ERROR_MESSAGE,
+                    "房间名只能包含大小写字母、数字和下划线"));
             return;
         }
 
-        if (password != null && !password.isEmpty() && !password.matches("^[a-zA-Z0-9_]+$")) {
+        if (password != null && !password.isEmpty() && !isValidName(password)) {
             handler.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "密码只能包含大小写字母、数字和下划线"
-            ));
+                    MessageType.ERROR_MESSAGE,
+                    "密码只能包含大小写字母、数字和下划线"));
             return;
         }
 
         ChatRoom newRoom = new ChatRoom(roomName, username, password);
         if (serverState.addChatRoom(roomName, newRoom)) {
             broadcastSystemMessage(Message.createSystemMessage(
-                MessageType.CREATE_ROOM_SUCCESS,
-                "新的聊天室 '" + roomName + "' 已创建"
-            ));
+                    MessageType.CREATE_ROOM_SUCCESS,
+                    "新的聊天室 '" + roomName + "' 已创建"));
 
             // 创建者自动加入房间
             handleJoinRoom(message, handler);
         } else {
             handler.sendMessage(Message.createSystemMessage(
-                MessageType.CREATE_ROOM_FAILURE,
-                "创建聊天室失败：名称 '" + roomName + "' 已被使用"
-            ));
+                    MessageType.CREATE_ROOM_FAILURE,
+                    "创建聊天室失败：名称 '" + roomName + "' 已被使用"));
         }
     }
 
@@ -140,61 +133,56 @@ public class ServerMessageProcessor {
 
         if (!isValidName(roomName)) {
             handler.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "房间名只能包含大小写字母、数字和下划线"
-            ));
+                    MessageType.ERROR_MESSAGE,
+                    "房间名只能包含大小写字母、数字和下划线"));
             return;
         }
 
         serverState.getChatRoom(roomName).ifPresentOrElse(
-            room -> {
-                if (!room.validatePassword(password)) {
-                    handler.sendMessage(Message.createSystemMessage(
-                        MessageType.JOIN_ROOM_FAILURE,
-                        "加入聊天室失败：密码错误"
-                    ));
-                    return;
-                }
+                room -> {
+                    if (!room.validatePassword(password)) {
+                        handler.sendMessage(Message.createSystemMessage(
+                                MessageType.JOIN_ROOM_FAILURE,
+                                "加入聊天室失败：密码错误"));
+                        return;
+                    }
 
-                if (room.addMember(username)) {
-                    // 通知房间内所有成员有新用户加入
-                    broadcastToRoom(roomName, Message.builder()
-                            .type(MessageType.USER_JOINED_ROOM_NOTIFICATION)
-                            .content("用户 " + username + " 加入了聊天室")
-                            .roomName(roomName)
-                            .sender("SERVER")
-                            .build());
-
-                    // 发送加入成功消息
-                    handler.sendMessage(Message.builder()
-                            .type(MessageType.JOIN_ROOM_SUCCESS)
-                            .content("成功加入聊天室 '" + roomName + "'")
-                            .roomName(roomName)
-                            .sender("SERVER")
-                            .build());
-
-                    // 发送历史消息
-                    List<Message> history = room.getRecentMessages(15);
-                    if (!history.isEmpty()) {
-                        handler.sendMessage(Message.builder()
-                                .type(MessageType.ROOM_HISTORY_RESPONSE)
+                    if (room.addMember(username)) {
+                        // 通知房间内所有成员有新用户加入
+                        broadcastToRoom(roomName, Message.builder()
+                                .type(MessageType.USER_JOINED_ROOM_NOTIFICATION)
+                                .content("用户 " + username + " 加入了聊天室")
                                 .roomName(roomName)
                                 .sender("SERVER")
-                                .data(history)
                                 .build());
+
+                        // 发送加入成功消息
+                        handler.sendMessage(Message.builder()
+                                .type(MessageType.JOIN_ROOM_SUCCESS)
+                                .content("成功加入聊天室 '" + roomName + "'")
+                                .roomName(roomName)
+                                .sender("SERVER")
+                                .build());
+
+                        // 发送历史消息
+                        List<Message> history = room.getRecentMessages(15);
+                        if (!history.isEmpty()) {
+                            handler.sendMessage(Message.builder()
+                                    .type(MessageType.ROOM_HISTORY_RESPONSE)
+                                    .roomName(roomName)
+                                    .sender("SERVER")
+                                    .data(history)
+                                    .build());
+                        }
+                    } else {
+                        handler.sendMessage(Message.createSystemMessage(
+                                MessageType.JOIN_ROOM_FAILURE,
+                                "加入聊天室失败：您已在房间中"));
                     }
-                } else {
-                    handler.sendMessage(Message.createSystemMessage(
+                },
+                () -> handler.sendMessage(Message.createSystemMessage(
                         MessageType.JOIN_ROOM_FAILURE,
-                        "加入聊天室失败：您已在房间中"
-                    ));
-                }
-            },
-            () -> handler.sendMessage(Message.createSystemMessage(
-                MessageType.JOIN_ROOM_FAILURE,
-                "加入聊天室失败：聊天室 '" + roomName + "' 不存在"
-            ))
-        );
+                        "加入聊天室失败：聊天室 '" + roomName + "' 不存在")));
     }
 
     /**
@@ -215,17 +203,15 @@ public class ServerMessageProcessor {
                         .build());
 
                 handler.sendMessage(Message.createSystemMessage(
-                    MessageType.LEAVE_ROOM_SUCCESS,
-                    "已离开聊天室 '" + roomName + "'"
-                ));
+                        MessageType.LEAVE_ROOM_SUCCESS,
+                        "已离开聊天室 '" + roomName + "'"));
 
                 // 如果房间空了，就删除这个房间
                 if (room.isEmpty()) {
                     serverState.removeChatRoom(roomName);
                     broadcastSystemMessage(Message.createSystemMessage(
-                        MessageType.ROOM_DESTROYED_NOTIFICATION,
-                        "聊天室 '" + roomName + "' 已被销毁（没有活跃用户）"
-                    ));
+                            MessageType.ROOM_DESTROYED_NOTIFICATION,
+                            "聊天室 '" + roomName + "' 已被销毁（没有活跃用户）"));
                 }
             }
         });
@@ -240,40 +226,36 @@ public class ServerMessageProcessor {
 
         if (roomName == null) {
             handler.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "消息缺少聊天室名称"
-            ));
+                    MessageType.ERROR_MESSAGE,
+                    "消息缺少聊天室名称"));
             return;
         }
 
         serverState.getChatRoom(roomName).ifPresentOrElse(
-            room -> {
-                if (!room.hasMember(username)) {
-                    handler.sendMessage(Message.createSystemMessage(
+                room -> {
+                    if (!room.hasMember(username)) {
+                        handler.sendMessage(Message.createSystemMessage(
+                                MessageType.ERROR_MESSAGE,
+                                "您不是聊天室 '" + roomName + "' 的成员"));
+                        return;
+                    }
+
+                    Message broadcastMessage = Message.builder()
+                            .type(MessageType.ROOM_MESSAGE_BROADCAST)
+                            .content(message.getContent())
+                            .sender(username)
+                            .roomName(roomName)
+                            .timestamp(message.getTimestamp())
+                            .build();
+
+                    // 保存消息到房间历史记录
+                    room.addMessage(broadcastMessage);
+
+                    broadcastToRoom(roomName, broadcastMessage);
+                },
+                () -> handler.sendMessage(Message.createSystemMessage(
                         MessageType.ERROR_MESSAGE,
-                        "您不是聊天室 '" + roomName + "' 的成员"
-                    ));
-                    return;
-                }
-
-                Message broadcastMessage = Message.builder()
-                        .type(MessageType.ROOM_MESSAGE_BROADCAST)
-                        .content(message.getContent())
-                        .sender(username)
-                        .roomName(roomName)
-                        .timestamp(message.getTimestamp())
-                        .build();
-
-                // 保存消息到房间历史记录
-                room.addMessage(broadcastMessage);
-                
-                broadcastToRoom(roomName, broadcastMessage);
-            },
-            () -> handler.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "聊天室 '" + roomName + "' 不存在"
-            ))
-        );
+                        "聊天室 '" + roomName + "' 不存在")));
     }
 
     /**
@@ -294,31 +276,28 @@ public class ServerMessageProcessor {
         String roomName = message.getRoomName();
         if (roomName == null) {
             handler.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "请求房间信息失败：聊天室名称不能为空"
-            ));
+                    MessageType.ERROR_MESSAGE,
+                    "请求房间信息失败：聊天室名称不能为空"));
             return;
         }
 
         serverState.getChatRoom(roomName).ifPresentOrElse(
-            room -> {
-                Map<String, Object> roomInfo = new HashMap<>();
-                roomInfo.put("name", room.getName());
-                roomInfo.put("creator", room.getCreator());
-                roomInfo.put("creationTime", room.getCreationTime());
-                roomInfo.put("members", new ArrayList<>(room.getMembers()));
+                room -> {
+                    Map<String, Object> roomInfo = new HashMap<>();
+                    roomInfo.put("name", room.getName());
+                    roomInfo.put("creator", room.getCreator());
+                    roomInfo.put("creationTime", room.getCreationTime());
+                    roomInfo.put("members", new ArrayList<>(room.getMembers()));
 
-                handler.sendMessage(Message.builder()
-                        .type(MessageType.ROOM_INFO_RESPONSE)
-                        .data(roomInfo)
-                        .roomName(roomName)
-                        .build());
-            },
-            () -> handler.sendMessage(Message.createSystemMessage(
-                MessageType.ERROR_MESSAGE,
-                "请求房间信息失败：聊天室 '" + roomName + "' 不存在"
-            ))
-        );
+                    handler.sendMessage(Message.builder()
+                            .type(MessageType.ROOM_INFO_RESPONSE)
+                            .data(roomInfo)
+                            .roomName(roomName)
+                            .build());
+                },
+                () -> handler.sendMessage(Message.createSystemMessage(
+                        MessageType.ERROR_MESSAGE,
+                        "请求房间信息失败：聊天室 '" + roomName + "' 不存在")));
     }
 
     /**
@@ -326,29 +305,26 @@ public class ServerMessageProcessor {
      */
     private void handleLogout(Message message, ClientHandler handler) {
         String username = message.getSender();
-        
+
         // 获取用户所在的所有房间
         List<String> userRooms = serverState.getChatRooms().entrySet().stream()
-            .filter(entry -> entry.getValue().hasMember(username))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toList());
+                .filter(entry -> entry.getValue().hasMember(username))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
 
         // 让用户离开所有房间
-        userRooms.forEach(roomName -> 
-            handleLeaveRoom(Message.builder()
+        userRooms.forEach(roomName -> handleLeaveRoom(Message.builder()
                 .type(MessageType.LEAVE_ROOM_REQUEST)
                 .sender(username)
                 .roomName(roomName)
-                .build(), 
-                handler)
-        );
+                .build(),
+                handler));
 
         // 发送登出确认消息
         handler.sendMessage(Message.createSystemMessage(
-            MessageType.LOGOUT_CONFIRMATION,
-            "您已成功登出"
-        ));
-        
+                MessageType.LOGOUT_CONFIRMATION,
+                "您已成功登出"));
+
         // 关闭连接
         handler.close();
     }
@@ -358,20 +334,18 @@ public class ServerMessageProcessor {
      */
     private void broadcastSystemMessage(Message message) {
         serverState.getOnlineUsers().values()
-            .forEach(handler -> handler.sendMessage(message));
+                .forEach(handler -> handler.sendMessage(message));
     }
 
     /**
      * 在聊天室内广播消息
      */
     private void broadcastToRoom(String roomName, Message message) {
-        serverState.getChatRoom(roomName).ifPresent(room ->
-            room.getMembers().stream()
+        serverState.getChatRoom(roomName).ifPresent(room -> room.getMembers().stream()
                 .map(username -> serverState.getClientHandler(username))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .forEach(handler -> handler.sendMessage(message))
-        );
+                .forEach(handler -> handler.sendMessage(message)));
     }
 
     /**
@@ -379,51 +353,45 @@ public class ServerMessageProcessor {
      * 只允许使用大小写字母、数字和下划线
      */
     private boolean isValidName(String name) {
-        return name != null && name.matches("^[a-zA-Z0-9_]+$");
-        }
-    
-        /**
-         * 处理修改房间密码请求
-         */
-        private void handleChangePassword(Message message, ClientHandler handler) {
-            String roomName = message.getRoomName();
-            String username = message.getSender();
-            String newPassword = (String) message.getData();
-    
-            if (newPassword != null && !newPassword.isEmpty() && !newPassword.matches("^[a-zA-Z0-9_]+$")) {
-                handler.sendMessage(Message.createSystemMessage(
+        return name != null && !name.isEmpty() && name.matches("^[a-zA-Z0-9_]+$");
+    }
+
+    /**
+     * 处理修改房间密码请求
+     */
+    private void handleChangePassword(Message message, ClientHandler handler) {
+        String roomName = message.getRoomName();
+        String username = message.getSender();
+        String newPassword = (String) message.getData();
+
+        if (newPassword != null && !newPassword.isEmpty() && !isValidName(newPassword)) {
+            handler.sendMessage(Message.createSystemMessage(
                     MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
-                    "密码只能包含大小写字母、数字和下划线"
-                ));
-                return;
-            }
-    
-            serverState.getChatRoom(roomName).ifPresentOrElse(
+                    "密码只能包含大小写字母、数字和下划线"));
+            return;
+        }
+
+        serverState.getChatRoom(roomName).ifPresentOrElse(
                 room -> {
                     if (!room.isCreator(username)) {
                         handler.sendMessage(Message.createSystemMessage(
-                            MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
-                            "修改密码失败：只有房主可以修改密码"
-                        ));
+                                MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
+                                "修改密码失败：只有房主可以修改密码"));
                         return;
                     }
-    
+
                     if (room.changePassword(username, newPassword)) {
                         handler.sendMessage(Message.createSystemMessage(
-                            MessageType.CHANGE_ROOM_PASSWORD_SUCCESS,
-                            "房间密码修改成功"
-                        ));
+                                MessageType.CHANGE_ROOM_PASSWORD_SUCCESS,
+                                "房间密码修改成功"));
                     } else {
                         handler.sendMessage(Message.createSystemMessage(
-                            MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
-                            "修改密码失败：密码格式错误"
-                        ));
+                                MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
+                                "修改密码失败：密码格式错误"));
                     }
                 },
                 () -> handler.sendMessage(Message.createSystemMessage(
-                    MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
-                    "修改密码失败：聊天室 '" + roomName + "' 不存在"
-                ))
-            );
-        }
+                        MessageType.CHANGE_ROOM_PASSWORD_FAILURE,
+                        "修改密码失败：聊天室 '" + roomName + "' 不存在")));
+    }
 }

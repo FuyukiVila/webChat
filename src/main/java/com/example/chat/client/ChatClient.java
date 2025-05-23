@@ -41,9 +41,9 @@ public class ChatClient {
      * 启动客户端
      */
     public void start() {
-        display.displayInfo("\n=== 聊天客户端启动 ===\n* 服务器地址: " + state.getHost() + 
-                             "\n* 端口: " + state.getPort() + 
-                             "\n* 按 Ctrl+C 退出程序\n===================\n");
+        display.displayInfo("\n=== 聊天客户端启动 ===\n* 服务器地址: " + state.getHost() +
+                "\n* 端口: " + state.getPort() +
+                "\n* 按 Ctrl+C 退出程序\n===================\n");
 
         try {
             display.displayInfo(String.format("正在连接到服务器 %s:%d...", state.getHost(), state.getPort()));
@@ -81,7 +81,7 @@ public class ChatClient {
      */
     private Optional<Boolean> handleLogin(boolean connected) {
         try {
-            while (true) {  // 修改为无限循环，直到成功登录或发生异常
+            while (true) { // 修改为无限循环，直到成功登录或发生异常
                 display.displayInfo("请输入您的用户名：");
                 String input = state.getScanner().nextLine().trim();
 
@@ -97,11 +97,11 @@ public class ChatClient {
                         return Optional.of(true);
                     }
                     if (response.getType() == MessageType.LOGIN_FAILURE_USERNAME_TAKEN) {
-                        break;  // 用户名被占用，跳出内层循环重新输入
+                        break; // 用户名被占用，跳出内层循环重新输入
                     }
                 }
 
-                state.setRunning(true);  // 重置运行状态，允许重新尝试
+                state.setRunning(true); // 重置运行状态，允许重新尝试
             }
         } catch (IOException | ClassNotFoundException e) {
             log.error("登录过程中发生错误: {}", e.getMessage());

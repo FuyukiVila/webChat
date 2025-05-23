@@ -20,10 +20,10 @@ public class ServerState {
     private final ConcurrentHashMap<String, ClientHandler> onlineUsers;
     private final ConcurrentHashMap<String, ChatRoom> chatRooms;
     private final ExecutorService executorService;
-    
+
     @Setter
     private ServerSocket serverSocket;
-    
+
     private final AtomicBoolean running;
 
     public ServerState(int port) {
@@ -121,11 +121,10 @@ public class ServerState {
      */
     public Optional<Map<String, Object>> getRoomInfo(String roomName) {
         return getChatRoom(roomName).map(room -> Map.of(
-            "name", room.getName(),
-            "creator", room.getCreator(),
-            "creationTime", room.getCreationTime(),
-            "members", room.getMembers()
-        ));
+                "name", room.getName(),
+                "creator", room.getCreator(),
+                "creationTime", room.getCreationTime(),
+                "members", room.getMembers()));
     }
 
     /**

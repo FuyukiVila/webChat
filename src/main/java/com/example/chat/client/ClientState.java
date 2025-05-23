@@ -17,17 +17,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Data
 public class ClientState {
     private final String host;
-    
+
     private final int port;
 
     private final Scanner scanner = new Scanner(System.in);
 
     private Socket socket;
-    
+
     private ObjectInputStream input;
 
     private ObjectOutputStream output;
-    
+
     private volatile String username;
 
     private volatile Optional<String> currentRoom = Optional.empty();
@@ -45,9 +45,12 @@ public class ClientState {
     public void close() {
         setRunning(false);
         try {
-            if (input != null) input.close();
-            if (output != null) output.close();
-            if (socket != null) socket.close();
+            if (input != null)
+                input.close();
+            if (output != null)
+                output.close();
+            if (socket != null)
+                socket.close();
             scanner.close();
         } catch (Exception e) {
             // 忽略关闭异常

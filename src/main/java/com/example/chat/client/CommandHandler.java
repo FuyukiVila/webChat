@@ -7,7 +7,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * 命令处理器，使用函数式方式处理不同的命令
@@ -27,120 +30,167 @@ public class CommandHandler {
     }
 
     private void initializeCommands() {
-        // 添加修改密码命令
-        commands.put("/passwd", (args, state) -> {
-            if (args.length < 2) {
-                display.displayHint("修改房间密码格式：/passwd room-name <new-password>");
-                return false;
-            }
-            try {
-                String roomName = args[1];
-                String newPassword = args.length > 2 ? args[2] : "";
-                messageHandler
-                        .sendMessage(Message.createChangePasswordRequest(roomName, state.getUsername(), newPassword));
-                return true;
-            } catch (IOException e) {
-                display.displayError("修改密码失败: " + e.getMessage());
-                return false;
-            }
-        });
+        commands.put("/passwd", this::handlePasswdCommand);
+        commands.put("/clear", this::handleClearCommand);
+        commands.put("/help", this::handleHelpCommand);
+        commands.put("/exit", this::handleExitCommand);
+        commands.put("/list", this::handleListCommand);
+        commands.put("/rooms", this::handleRoomsCommand);
+        commands.put("/create-room", this::handleCreateRoomCommand);
+        commands.put("/join", this::handleJoinCommand);
+        commands.put("/leave", this::handleLeaveCommand);
+        commands.put("/room-info", this::handleRoomInfoCommand);
+        commands.put("/pm", this::handlePmCommand);
+    }
 
-        commands.put("/clear", (args, state) -> {
-            // 使用ANSI转义序列清屏
-            System.out.print("\033[H\033[2J");
-            System.out.flush();
+    /**
+     * 处理修改密码命令
+     */
+    private boolean handlePasswdCommand(String[] args, ClientState state) {
+        if (args.length < 2) {
+            display.displayHint("修改房间密码格式：/passwd room-name <new-password>");
+            return false;
+        }
+        try {
+            String roomName = args[1];
+            String newPassword = args.length > 2 ? args[2] : "";
+            if (newPassword != null && !newPassword.isEmpty() && !isValidName(newPassword)) {
+                display.displayError("密码只能包含大小写字母、数字和下划线！");
+                return false;
+            }
+            messageHandler.sendMessage(Message.createChangePasswordRequest(roomName, state.getUsername(), newPassword));
             return true;
-        });
+        } catch (IOException e) {
+            display.displayError("修改密码失败: " + e.getMessage());
+            return false;
+        }
+    }
 
-        commands.put("/help", (args, state) -> {
-            display.displayHelp();
+    /**
+     * 处理清屏命令
+     */
+    private boolean handleClearCommand(String[] args, ClientState state) {
+        // 使用ANSI转义序列清屏
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+        return true;
+    }
+
+    /**
+     * 处理帮助命令
+     */
+    private boolean handleHelpCommand(String[] args, ClientState state) {
+        display.displayHelp();
+        return true;
+    }
+
+    /**
+     * 处理退出命令
+     */
+    private boolean handleExitCommand(String[] args, ClientState state) {
+        try {
+            messageHandler.sendMessage(Message.builder()
+                    .type(MessageType.LOGOUT_REQUEST)
+                    .sender(state.getUsername())
+                    .build());
             return true;
-        });
+        } catch (IOException e) {
+            display.displayError("发送退出请求失败: " + e.getMessage());
+            return false;
+        }
+    }
 
-        commands.put("/exit", (args, state) -> {
-            try {
-                messageHandler.sendMessage(Message.builder()
-                        .type(MessageType.LOGOUT_REQUEST)
-                        .sender(state.getUsername())
-                        .build());
-                return true;
-            } catch (IOException e) {
-                display.displayError("发送退出请求失败: " + e.getMessage());
-                return false;
-            }
-        });
+    /**
+     * 处理用户列表命令
+     */
+    private boolean handleListCommand(String[] args, ClientState state) {
+        try {
+            messageHandler.sendMessage(Message.createUserListRequest(state.getUsername()));
+            return true;
+        } catch (IOException e) {
+            display.displayError("获取用户列表失败: " + e.getMessage());
+            return false;
+        }
+    }
 
-        commands.put("/list", (args, state) -> {
-            try {
-                messageHandler.sendMessage(Message.createUserListRequest(state.getUsername()));
-                return true;
-            } catch (IOException e) {
-                display.displayError("获取用户列表失败: " + e.getMessage());
-                return false;
-            }
-        });
+    /**
+     * 处理聊天室列表命令
+     */
+    private boolean handleRoomsCommand(String[] args, ClientState state) {
+        try {
+            messageHandler.sendMessage(Message.createListRoomsRequest(state.getUsername()));
+            return true;
+        } catch (IOException e) {
+            display.displayError("获取聊天室列表失败: " + e.getMessage());
+            return false;
+        }
+    }
 
-        commands.put("/rooms", (args, state) -> {
-            try {
-                messageHandler.sendMessage(Message.createListRoomsRequest(state.getUsername()));
-                return true;
-            } catch (IOException e) {
-                display.displayError("获取聊天室列表失败: " + e.getMessage());
-                return false;
-            }
-        });
+    /**
+     * 处理创建聊天室命令
+     */
+    private boolean handleCreateRoomCommand(String[] args, ClientState state) {
+        if (args.length < 2) {
+            display.displayHint("创建聊天室格式：/create-room room-name <password>");
+            return false;
+        }
+        String password = args.length > 2 ? args[2] : "";
+        return handleCreateRoom(args[1], password);
+    }
 
-        commands.put("/create-room", (args, state) -> {
-            if (args.length < 2) {
-                display.displayHint("创建聊天室格式：/create-room room-name <password>");
-                return false;
-            }
-            String password = args.length > 2 ? args[2] : "";
-            return handleCreateRoom(args[1], password);
-        });
+    /**
+     * 处理加入聊天室命令
+     */
+    private boolean handleJoinCommand(String[] args, ClientState state) {
+        if (args.length < 2) {
+            display.displayHint("加入聊天室格式：/join room-name <password>");
+            return false;
+        }
+        String password = args.length > 2 ? args[2] : "";
+        return handleJoinRoom(args[1], password);
+    }
 
-        commands.put("/join", (args, state) -> {
-            if (args.length < 2) {
-                display.displayHint("加入聊天室格式：/join room-name <password>");
-                return false;
-            }
-            String password = args.length > 2 ? args[2] : "";
-            return handleJoinRoom(args[1], password);
-        });
+    /**
+     * 处理离开聊天室命令
+     */
+    private boolean handleLeaveCommand(String[] args, ClientState state) {
+        return state.getCurrentRoom()
+                .map(this::handleLeaveRoom)
+                .orElseGet(() -> {
+                    display.displayError("您当前不在任何聊天室中");
+                    return false;
+                });
+    }
 
-        commands.put("/leave", (args, state) -> {
-            return state.getCurrentRoom()
-                    .map(this::handleLeaveRoom)
-                    .orElseGet(() -> {
-                        display.displayError("您当前不在任何聊天室中");
+    /**
+     * 处理房间信息命令
+     */
+    private boolean handleRoomInfoCommand(String[] args, ClientState state) {
+        return state.getCurrentRoom()
+                .map(room -> {
+                    try {
+                        messageHandler.sendMessage(Message.createRoomInfoRequest(state.getUsername(), room));
+                        return true;
+                    } catch (IOException e) {
+                        display.displayError("获取房间信息失败: " + e.getMessage());
                         return false;
-                    });
-        });
+                    }
+                })
+                .orElseGet(() -> {
+                    display.displayError("您当前不在任何聊天室中");
+                    return false;
+                });
+    }
 
-        commands.put("/room-info", (args, state) -> {
-            return state.getCurrentRoom()
-                    .map(room -> {
-                        try {
-                            messageHandler.sendMessage(Message.createRoomInfoRequest(state.getUsername(), room));
-                            return true;
-                        } catch (IOException e) {
-                            display.displayError("获取房间信息失败: " + e.getMessage());
-                            return false;
-                        }
-                    })
-                    .orElseGet(() -> {
-                        display.displayError("您当前不在任何聊天室中");
-                        return false;
-                    });
-        });
-
-        commands.put("/pm", (args, state) -> {
-            if (args.length < 3) {
-                display.displayHint("私聊格式：/pm <用户名> <消息>");
-                return false;
-            }
-            return handlePrivateMessage(args);
-        });
+    /**
+     * 处理私聊命令
+     */
+    private boolean handlePmCommand(String[] args, ClientState state) {
+        if (args.length < 3) {
+            display.displayHint("私聊格式：/pm <用户名> <消息>");
+            return false;
+        }
+        return handlePrivateMessage(args);
     }
 
     /**
@@ -190,6 +240,11 @@ public class CommandHandler {
 
         if (roomName.equals(state.getCurrentRoom().orElse(null))) {
             display.displayError("您已经在该聊天室中！");
+            return false;
+        }
+
+        if (password != null && !password.isEmpty() && !isValidName(password)) {
+            display.displayError("密码只能包含大小写字母、数字和下划线！");
             return false;
         }
 
@@ -266,6 +321,6 @@ public class CommandHandler {
      * 只允许使用大小写字母、数字和下划线
      */
     private boolean isValidName(String name) {
-        return name != null && name.matches("^[a-zA-Z0-9_]+$");
+        return name != null && !name.isEmpty() && name.matches("^[a-zA-Z0-9_]+$");
     }
 }

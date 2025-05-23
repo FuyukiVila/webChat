@@ -81,18 +81,15 @@ public class ChatServer {
         if (future != null && !future.isDone()) {
             try {
                 log.info("开始服务器关闭流程...");
-                
+
                 // 先设置状态为不运行，阻止新的连接
                 state.setRunning(false);
 
                 // 通知所有客户端服务器关闭
                 log.info("通知所有客户端服务器即将关闭...");
-                state.getOnlineUsers().values().forEach(handler -> 
-                    handler.sendMessage(Message.createSystemMessage(
+                state.getOnlineUsers().values().forEach(handler -> handler.sendMessage(Message.createSystemMessage(
                         MessageType.SERVER_SHUTDOWN_NOTIFICATION,
-                        "服务器即将关闭..."
-                    ))
-                );
+                        "服务器即将关闭...")));
 
                 // 等待消息发送完成
                 Thread.sleep(100);
@@ -105,7 +102,7 @@ public class ChatServer {
 
                 // 关闭服务器状态（这会关闭所有客户端连接和线程池）
                 state.shutdown();
-                
+
                 log.info("服务器关闭完成");
                 future.complete(null);
             } catch (Exception e) {
@@ -129,7 +126,7 @@ public class ChatServer {
         }
 
         ChatServer server = new ChatServer(port);
-        
+
         // 添加关闭钩子，确保在Ctrl+C时正确关闭服务器
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("\n正在关闭服务器...");
@@ -144,7 +141,7 @@ public class ChatServer {
                 System.err.println("等待服务器关闭时发生错误: " + e.getMessage());
             }
         }));
-        
+
         server.start();
     }
 }
