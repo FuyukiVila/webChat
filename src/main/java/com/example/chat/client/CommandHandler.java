@@ -7,10 +7,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * 命令处理器，使用函数式方式处理不同的命令
