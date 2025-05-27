@@ -48,6 +48,7 @@ public enum MessageType {
     // 聊天室状态变更通知
     USER_JOINED_ROOM_NOTIFICATION, // S->C: 服务器通知房间内有新用户加入
     USER_LEFT_ROOM_NOTIFICATION, // S->C: 服务器通知房间内有用户离开
+    ROOM_CREATED_NOTIFICATION, // S->C: 服务器通知聊天室已被创建
     ROOM_DESTROYED_NOTIFICATION, // S->C: 服务器通知聊天室已被销毁（当房间空了之后）
 
     // 房间信息相关

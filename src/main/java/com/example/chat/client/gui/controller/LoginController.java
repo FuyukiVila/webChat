@@ -1,5 +1,6 @@
 package com.example.chat.client.gui.controller;
 
+import com.example.chat.client.gui.util.AlertUtil;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -10,6 +11,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import lombok.extern.slf4j.Slf4j;
 
 import com.example.chat.client.ClientState;
@@ -42,7 +44,6 @@ public class LoginController {
     private TextField usernameField;
     private TextField hostField;
     private TextField portField;
-    private Label errorLabel;
     
     private ClientState clientState;
     private MessageHandler messageHandler;
@@ -99,17 +100,12 @@ public class LoginController {
         portField.setPromptText("端口号");
         portField.setFont(Font.font(FONT_FAMILY, 14));
         
-        errorLabel = new Label();
-        errorLabel.setStyle("-fx-text-fill: red;");
-        errorLabel.setFont(Font.font(FONT_FAMILY, 12));
-        
         grid.add(new Label("用户名:"), 0, 0);
         grid.add(usernameField, 1, 0);
         grid.add(new Label("服务器:"), 0, 1);
         grid.add(hostField, 1, 1);
         grid.add(new Label("端口:"), 0, 2);
         grid.add(portField, 1, 2);
-        grid.add(errorLabel, 1, 3);
         
         loginDialog.getDialogPane().setContent(grid);
         
@@ -129,8 +125,6 @@ public class LoginController {
      * 验证输入
      */
     private boolean validateInput() {
-        errorLabel.setText("");
-        
         String username = usernameField.getText().trim();
         String host = hostField.getText().trim();
         String portText = portField.getText().trim();
@@ -174,83 +168,112 @@ public class LoginController {
         String username = usernameField.getText().trim();
         String host = hostField.getText().trim();
         int port = Integer.parseInt(portField.getText().trim());
-        
-        // 创建客户端状态
+
         clientState = new ClientState(host, port);
         messageHandler = new MessageHandler(clientState);
-        
+
         try {
-            // 连接服务器
             connectToServer();
-            
-            // 发送登录请求
-            if (sendLoginRequest(username)) {
-                // 登录成功，调用回调
+            String loginError = sendLoginRequest(username);
+
+            if (loginError == null) { // Success
                 loginSuccessCallback.accept(clientState, messageHandler);
-            } else {
-                // 登录失败，重新显示对话框
-                Platform.runLater(this::show);
+            } else { // Failure
+                closeClientResources();
+                showError(loginError); // showError is now blocking
+                Platform.runLater(this::show); // Re-show login dialog
             }
-            
-        } catch (Exception e) {
-            log.error("登录过程中发生错误", e);
+        } catch (IOException e) { // Connection failed in connectToServer
+            log.error("连接服务器失败", e);
+            closeClientResources();
             showError("连接服务器失败: " + e.getMessage());
+            Platform.runLater(this::show);
+        } catch (Exception e) { // Other unexpected errors during login setup
+            log.error("登录过程中发生未知错误", e);
+            closeClientResources();
+            showError("登录时发生未知错误: " + e.getMessage());
             Platform.runLater(this::show);
         }
     }
-    
+
+    /**
+     * 关闭客户端资源
+     */
+    private void closeClientResources() {
+        if (clientState != null) {
+            clientState.setRunning(false); // Signal message reading loops to stop
+            try {
+                if (clientState.getSocket() != null && !clientState.getSocket().isClosed()) {
+                    clientState.getSocket().close();
+                }
+            } catch (IOException e) {
+                log.warn("关闭socket时出错: {}", e.getMessage());
+            }
+            // Streams are typically closed when the socket is closed.
+            // Explicitly closing them can sometimes cause issues if the socket is already closed.
+            clientState.setSocket(null);
+            clientState.setInput(null);
+            clientState.setOutput(null);
+        }
+    }
+
     /**
      * 连接服务器
      */
     private void connectToServer() throws IOException {
         Socket socket = new Socket(clientState.getHost(), clientState.getPort());
         clientState.setSocket(socket);
-        clientState.setOutput(new ObjectOutputStream(socket.getOutputStream()));
+        // Ensure output stream is flushed immediately for ObjectInputStream on the other side
+        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+        oos.flush();
+        clientState.setOutput(oos);
         clientState.setInput(new ObjectInputStream(socket.getInputStream()));
         clientState.setRunning(true);
     }
-    
+
     /**
-     * 发送登录请求
+     * 发送登录请求.
+     * @return null on success, error message string on failure.
      */
-    private boolean sendLoginRequest(String username) {
+    private String sendLoginRequest(String username) {
         try {
             messageHandler.sendMessage(Message.createLoginRequest(username));
-            
-            while (clientState.isRunning()) {
-                Message response = (Message) clientState.getInput().readObject();
-                
+
+            while (clientState.isRunning()) { // Loop should ideally have a timeout or break condition
+                Message response = (Message) clientState.getInput().readObject(); // This blocks
+
                 switch (response.getType()) {
                     case LOGIN_SUCCESS:
                         clientState.setUsername(username);
-                        return true;
-                        
+                        return null; // Success
+
                     case LOGIN_FAILURE_USERNAME_TAKEN:
-                        showError("用户名已被占用，请选择其他用户名");
-                        return false;
-                        
+                        return "用户名已被占用，请选择其他用户名";
+
                     case ERROR_MESSAGE:
-                        showError("登录失败: " + response.getContent());
-                        return false;
-                        
+                        return "登录失败: " + response.getContent();
+
                     default:
                         log.warn("登录过程中收到意外的消息类型：{}", response.getType());
-                        break;
+                        return "收到意外的服务器响应: " + response.getType();
                 }
             }
-            
+            return "登录过程被中断或连接丢失";
+
         } catch (IOException | ClassNotFoundException e) {
             log.error("登录请求失败", e);
-            showError("登录请求失败: " + e.getMessage());
+            return "登录请求通信失败: " + e.getMessage();
         }
-        
-        return false;
     }
-    
+
     /**
      * 显示错误信息
      */
     private void showError(String message) {
-        Platform.runLater(() -> errorLabel.setText(message));
+        Window alertOwner = null;
+        if (parentStage != null && parentStage.isShowing() && parentStage.getScene() != null) {
+            alertOwner = parentStage;
+        }
+        AlertUtil.showError(alertOwner, "登录错误", message);
     }
 }

@@ -56,7 +56,11 @@ mvn clean package
 ### 运行服务器
 
 ```bash
+# Linux/macOS
 java -jar target/chat-server.jar [port]
+
+# Windows (推荐，解决中文乱码)
+java -Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8 -jar target/chat-server.jar [port]
 ```
 
 默认端口: 8888
@@ -64,10 +68,56 @@ java -jar target/chat-server.jar [port]
 ### 运行客户端
 
 ```bash
+# Linux/macOS
 java -jar target/chat-client.jar [host] [port]
+
+# Windows (推荐，解决中文乱码)
+java -Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8 -jar target/chat-client.jar [host] [port]
 ```
 
 默认连接: localhost:8888
+
+### 运行GUI客户端
+
+```bash
+# Linux/macOS
+java -jar target/chat-gui-client.jar
+
+# Windows (推荐，解决中文乱码)
+java -Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8 -jar target/chat-gui-client.jar
+```
+
+### 快速启动（推荐）
+
+使用提供的启动脚本：
+
+```bash
+# Linux/macOS
+./demo.sh
+
+# Windows
+demo.bat
+```
+
+### 中文显示问题解决
+
+如果在Windows环境下遇到中文乱码问题，请：
+
+1. **设置控制台代码页**：
+   ```cmd
+   chcp 65001
+   ```
+
+2. **使用UTF-8启动参数**：
+   ```cmd
+   java -Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8 -Duser.language=zh -Duser.country=CN -jar [jar文件]
+   ```
+
+3. **推荐使用Windows Terminal**获得更好的中文显示效果
+
+4. **GUI客户端字体要求**：
+   - 系统需要安装 Noto Sans SC 字体以获得最佳中文显示效果
+   - 如果没有该字体，系统将使用默认字体
 
 ## 客户端命令
 

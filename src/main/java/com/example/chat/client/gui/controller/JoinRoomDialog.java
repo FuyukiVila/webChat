@@ -1,5 +1,6 @@
 package com.example.chat.client.gui.controller;
 
+import com.example.chat.client.gui.util.AlertUtil;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
@@ -15,7 +16,6 @@ public class JoinRoomDialog extends Dialog<String> {
     
     private final String roomName;
     private PasswordField passwordField;
-    private Label errorLabel;
     
     public JoinRoomDialog(String roomName) {
         this.roomName = roomName;
@@ -58,12 +58,8 @@ public class JoinRoomDialog extends Dialog<String> {
         roomLabel.setStyle("-fx-font-weight: bold;");
         
         passwordField = new PasswordField();
-        passwordField.setPromptText("房间密码 (如果需要)");
+        passwordField.setPromptText("房间密码 (字母数字下划线)");
         passwordField.setFont(Font.font(FONT_FAMILY, 14));
-        
-        errorLabel = new Label();
-        errorLabel.setStyle("-fx-text-fill: red;");
-        errorLabel.setFont(Font.font(FONT_FAMILY, 12));
         
         Label hintLabel = new Label("提示: 如果房间没有设置密码，请留空");
         hintLabel.setStyle("-fx-text-fill: #666;");
@@ -72,8 +68,7 @@ public class JoinRoomDialog extends Dialog<String> {
         grid.add(roomLabel, 0, 0, 2, 1);
         grid.add(new Label("密码:"), 0, 1);
         grid.add(passwordField, 1, 1);
-        grid.add(errorLabel, 1, 2);
-        grid.add(hintLabel, 0, 3, 2, 1);
+        grid.add(hintLabel, 0, 2, 2, 1);
         
         getDialogPane().setContent(grid);
         
@@ -97,13 +92,16 @@ public class JoinRoomDialog extends Dialog<String> {
      * 验证输入
      */
     private boolean validateInput() {
-        errorLabel.setText("");
-        
         String password = passwordField.getText();
         
-        // 密码可以为空（表示无密码房间）
-        if (password.length() > 50) {
-            showError("密码长度不能超过50个字符");
+        // 验证密码格式（如果设置了密码）
+        if (!password.isEmpty() && !isValidName(password)) {
+            showError("房间密码只能包含大小写字母、数字和下划线");
+            return false;
+        }
+        
+        if (password.length() > 20) {
+            showError("房间密码不能超过20个字符");
             return false;
         }
         
@@ -111,9 +109,17 @@ public class JoinRoomDialog extends Dialog<String> {
     }
     
     /**
+     * 验证名称格式（用户名或房间名或密码）
+     * 只允许使用大小写字母、数字和下划线
+     */
+    private boolean isValidName(String name) {
+        return name != null && !name.isEmpty() && name.matches("^[a-zA-Z0-9_]+$");
+    }
+    
+    /**
      * 显示错误信息
      */
     private void showError(String message) {
-        errorLabel.setText(message);
+        AlertUtil.showError(getDialogPane().getScene().getWindow(), "输入错误", message);
     }
 }

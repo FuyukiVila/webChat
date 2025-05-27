@@ -110,8 +110,11 @@ public class ServerMessageProcessor {
 
         ChatRoom newRoom = new ChatRoom(roomName, username, password);
         if (serverState.addChatRoom(roomName, newRoom)) {
-            broadcastSystemMessage(Message.createSystemMessage(
+            handler.sendMessage(Message.createSystemMessage(
                     MessageType.CREATE_ROOM_SUCCESS,
+                    "新的聊天室 '" + roomName + "' 已创建"));
+            broadcastSystemMessage(Message.createSystemMessage(
+                    MessageType.ROOM_CREATED_NOTIFICATION,
                     "新的聊天室 '" + roomName + "' 已创建"));
 
             // 创建者自动加入房间
@@ -165,7 +168,7 @@ public class ServerMessageProcessor {
                                 .build());
 
                         // 发送历史消息
-                        List<Message> history = room.getRecentMessages(15);
+                        List<Message> history = room.getRecentMessages(30);
                         if (!history.isEmpty()) {
                             handler.sendMessage(Message.builder()
                                     .type(MessageType.ROOM_HISTORY_RESPONSE)

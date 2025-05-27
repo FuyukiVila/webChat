@@ -1,4 +1,4 @@
-package com.example.chat.client;
+package com.example.chat.client.shell;
 
 import com.example.chat.common.Message;
 import com.example.chat.common.MessageType;

@@ -1,5 +1,7 @@
-package com.example.chat.client;
+package com.example.chat.client.shell;
 
+import com.example.chat.client.ClientState;
+import com.example.chat.client.MessageHandler;
 import com.example.chat.common.Message;
 import com.example.chat.common.MessageType;
 
