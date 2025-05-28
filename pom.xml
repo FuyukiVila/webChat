@@ -101,7 +101,7 @@
                         <configuration>
                             <archive>
                                 <manifest>
-                                    <mainClass>com.example.chat.client.ChatClient</mainClass>
+                                    <mainClass>com.example.chat.client.shell.ChatClient</mainClass>
                                 </manifest>
                             </archive>
                             <descriptorRefs>
